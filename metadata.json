@@ -1,0 +1,6 @@
+{
+  "name": "Kinetic Pulse",
+  "description": "High-fidelity multimedia streaming, lossless music discovery, and vertical 9:16 creator shorts platform.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
