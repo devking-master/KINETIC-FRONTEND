@@ -10,21 +10,31 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ── CORS Configuration ──
+// FRONTEND_URL can hold one origin, or several comma-separated
+// (e.g. "https://kinetic-frontend-ecru.vercel.app,https://my-preview-branch.vercel.app")
+// so you can whitelist new deploy previews without touching this code.
+const extraOrigins = (process.env.FRONTEND_URL || '')
+  .split(',')
+  .map((url) => url.trim().replace(/\/+$/, '')) // trim whitespace + trailing slash
+  .filter(Boolean);
+
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
   'http://127.0.0.1:3000',
   'http://127.0.0.1:5173',
-  process.env.FRONTEND_URL,
-].filter(Boolean) as string[];
+  ...extraOrigins,
+];
 
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, curl, Postman)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
+    const normalizedOrigin = origin.replace(/\/+$/, '');
+    if (allowedOrigins.includes(normalizedOrigin)) {
       return callback(null, true);
     }
+    console.warn(`[Kinetic CORS] Blocked origin: ${origin}`);
     callback(new Error(`CORS: Origin ${origin} not allowed`));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

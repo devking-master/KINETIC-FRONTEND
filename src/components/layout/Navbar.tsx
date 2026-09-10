@@ -11,7 +11,8 @@ import {
   Home, 
   Library, 
   Radio,
-  X
+  X,
+  ChevronDown
 } from 'lucide-react';
 import { ActiveTab, AuthUser, Track } from '../../types';
 import { musicApi } from '../../services/musicApi';
@@ -40,6 +41,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [searchResults, setSearchResults] = useState<{ tracks: Track[]; videos: unknown[] }>({ tracks: [], videos: [] });
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [showCompactMenu, setShowCompactMenu] = useState(false);
 
   // Debounced search
   useEffect(() => {
@@ -81,7 +83,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden md:flex items-center gap-1 bg-[#131722] p-1 rounded-full border border-[#1F273A]">
+          <nav className="hidden lg:flex items-center gap-1 bg-[#131722] p-1 rounded-full border border-[#1F273A]">
             {navItems.map((item) => {
               const isActive = activeTab === item.id;
               return (
@@ -103,7 +105,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Center: Global Search Input */}
-        <div className="relative flex-1 max-w-md hidden sm:block">
+        <div className="relative flex-1 max-w-md hidden lg:block">
           <div className="relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
             <input
@@ -161,7 +163,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Right Actions: Live Audio Indicator, Upload, Studio, Profile */}
-        <div className="flex items-center gap-3">
+        <div className="hidden lg:flex items-center gap-3">
           {/* Live Playing Spectrum Bar Mini Indicator */}
           {isPlaying && (
             <div className="hidden lg:flex items-center gap-1 bg-[#6366F1]/10 border border-[#6366F1]/30 px-3 py-1.5 rounded-full">
@@ -212,6 +214,108 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
           </button>
+        </div>
+
+        {/* Tablet/mobile: keep the header focused on the brand and profile menu */}
+        <div className="flex items-center gap-2 lg:hidden">
+          <div className="relative">
+            <button
+              onClick={() => setShowSearchDropdown((isOpen) => !isOpen)}
+              aria-expanded={showSearchDropdown}
+              aria-label="Search"
+              className="p-2 rounded-full text-[#94A3B8] hover:text-white hover:bg-[#1B2130] transition-colors"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+
+            {showSearchDropdown && (
+              <div className="absolute right-0 top-full mt-2 w-56 max-w-[calc(100vw-5rem)] bg-[#131722] border border-[#1F273A] rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#64748B]" />
+                  <input
+                    autoFocus
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search..."
+                    className="w-full bg-[#0F131B] border border-[#1F273A] rounded-lg pl-8 pr-2.5 py-2 text-xs text-white placeholder-[#64748B] focus:outline-none focus:border-[#6366F1] transition-all"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="relative">
+            <button
+              onClick={() => setShowCompactMenu((isOpen) => !isOpen)}
+              aria-expanded={showCompactMenu}
+              aria-label="Open navigation menu"
+              className="flex items-center gap-1 p-1 rounded-full bg-[#131722] border border-[#1F273A] hover:border-[#6366F1] transition-all"
+            >
+              {currentUser ? (
+                <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-7 h-7 rounded-full object-cover" />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-[#1B2130] flex items-center justify-center text-[#94A3B8]">
+                  <UserIcon className="w-4 h-4" />
+                </div>
+              )}
+              <ChevronDown className={`w-3.5 h-3.5 text-[#94A3B8] transition-transform ${showCompactMenu ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showCompactMenu && (
+              <div className="absolute right-0 top-full mt-2 w-60 max-w-[calc(100vw-2rem)] bg-[#131722] border border-[#1F273A] rounded-2xl shadow-2xl overflow-hidden z-50 p-2 animate-in fade-in slide-in-from-top-2">
+                <div className="px-3 py-2 border-b border-[#1F273A] mb-1">
+                  <p className="text-xs font-bold text-white truncate">{currentUser?.name || 'Kinetic Menu'}</p>
+                  <p className="text-[11px] text-[#64748B]">Navigate Kinetic</p>
+                </div>
+
+                {navItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setShowCompactMenu(false);
+                      onNavigate(item.id);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                      activeTab === item.id
+                        ? 'bg-[#6366F1]/15 text-white'
+                        : 'text-[#94A3B8] hover:bg-[#1B2130] hover:text-white'
+                    }`}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+
+                <div className="border-t border-[#1F273A] mt-1 pt-1">
+                  <button
+                    onClick={() => {
+                      setShowCompactMenu(false);
+                      onOpenUploadModal();
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-[#94A3B8] hover:bg-[#1B2130] hover:text-white transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Create</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowCompactMenu(false);
+                      onNavigate('creator-studio');
+                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                      activeTab === 'creator-studio'
+                        ? 'bg-[#6366F1]/15 text-white'
+                        : 'text-[#94A3B8] hover:bg-[#1B2130] hover:text-white'
+                    }`}
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>Studio</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </header>

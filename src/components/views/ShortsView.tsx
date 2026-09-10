@@ -337,19 +337,16 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
   };
 
   return (
-    // Full-viewport takeover — no margins, no padding from parent
-    <div 
-      ref={containerRef}
-      className="fixed inset-0 z-50 bg-black overflow-hidden"
-    >
-      {/* ──────────────────────────────────────
-          FULL SCREEN VIDEO PLAYER
-      ────────────────────────────────────── */}
+    // Full-viewport takeover — no margins, no padding from parent.
+    // On wider screens the actual video keeps its natural 9:16 shape,
+    // centered with letterboxing, instead of being cover-cropped.
+    <div className="fixed inset-0 z-50 bg-black overflow-hidden flex items-center justify-center">
       <div
+        ref={containerRef}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onClick={handleTap}
-        className="relative w-full h-full select-none"
+        className="relative w-full h-full sm:h-full sm:w-auto sm:aspect-[9/16] sm:max-w-full sm:rounded-2xl sm:overflow-hidden sm:shadow-2xl sm:shadow-black/60 sm:border sm:border-white/10 select-none bg-black"
       >
         {isLoading && (
           <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/80">
@@ -369,7 +366,7 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
           </div>
         )}
 
-        {/* Native HTML5 Video — covers entire viewport */}
+        {/* Native HTML5 Video — fills its properly-shaped 9:16 frame, no crop */}
         {activeVideo.videoUrl && (
           <video
             ref={videoRef}
