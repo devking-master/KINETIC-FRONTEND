@@ -12,7 +12,9 @@ import {
   Library, 
   Radio,
   X,
-  ChevronDown
+  ChevronDown,
+  LogOut,
+  Loader2
 } from 'lucide-react';
 import { ActiveTab, AuthUser, Track } from '../../types';
 import { musicApi } from '../../services/musicApi';
@@ -25,6 +27,7 @@ interface NavbarProps {
   onPlayTrack?: (track: Track) => void;
   currentUser: AuthUser | null;
   onOpenAuth: () => void;
+  onLogout: () => Promise<void> | void;
   isPlaying?: boolean;
 }
 
@@ -35,6 +38,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onPlayTrack,
   currentUser,
   onOpenAuth,
+  onLogout,
   isPlaying,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -42,6 +46,17 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [showCompactMenu, setShowCompactMenu] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await onLogout();
+      setShowCompactMenu(false);
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   // Debounced search
   useEffect(() => {
@@ -312,6 +327,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <Sparkles className="w-4 h-4" />
                     <span>Studio</span>
                   </button>
+                  {currentUser && (
+                    <button
+                      onClick={handleLogout}
+                      disabled={isLoggingOut}
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-[#F87171] hover:bg-[#F43F5E]/10 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isLoggingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
+                      <span>{isLoggingOut ? 'Signing out...' : 'Sign Out'}</span>
+                    </button>
+                  )}
                 </div>
               </div>
             )}

@@ -71,6 +71,15 @@ export default function App() {
     showToast(`Successfully published "${item.title}" to Kinetic Catalog!`);
   };
 
+  const handleOpenUploadModal = () => {
+    if (!currentUser) {
+      showToast('Sign in before uploading media.');
+      handleNavigate('auth');
+      return;
+    }
+    setIsUploadModalOpen(true);
+  };
+
   const handleOpenShare = (title: string, videoId?: string) => {
     setShareConfig({ isOpen: true, title, videoId });
   };
@@ -123,10 +132,16 @@ export default function App() {
           <Navbar
             activeTab={activeTab}
             onNavigate={handleNavigate}
-            onOpenUploadModal={() => setIsUploadModalOpen(true)}
+            onOpenUploadModal={handleOpenUploadModal}
             onPlayTrack={handlePlayTrack}
             currentUser={currentUser}
             onOpenAuth={() => handleNavigate('auth')}
+            onLogout={async () => {
+              authApi.removeToken();
+              setCurrentUser(null);
+              showToast('Signed out of Kinetic.');
+              handleNavigate('home');
+            }}
             isPlaying={playerState.isPlaying}
           />
 
@@ -152,7 +167,7 @@ export default function App() {
 
             {activeTab === 'creator-studio' && (
               <CreatorStudioView
-                onOpenUploadModal={() => setIsUploadModalOpen(true)}
+                onOpenUploadModal={handleOpenUploadModal}
                 onNavigate={handleNavigate}
               />
             )}
@@ -179,7 +194,7 @@ export default function App() {
                   showToast(`Welcome to Kinetic, ${user.name}!`);
                   handleNavigate('home');
                 }}
-                onLogout={() => {
+                onLogout={async () => {
                   authApi.removeToken();
                   setCurrentUser(null);
                   showToast('Signed out of Kinetic.');
@@ -193,7 +208,7 @@ export default function App() {
           <MobileNav
             activeTab={activeTab}
             onNavigate={handleNavigate}
-            onOpenUploadModal={() => setIsUploadModalOpen(true)}
+            onOpenUploadModal={handleOpenUploadModal}
             currentUser={currentUser}
             onOpenAuth={() => handleNavigate('auth')}
           />

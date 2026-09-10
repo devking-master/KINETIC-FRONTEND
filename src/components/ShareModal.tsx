@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Share2, Check, Copy, X } from 'lucide-react';
+import { Share2, Check, Copy, X, Loader2 } from 'lucide-react';
 import { videoApi } from '../services/videoApi';
 
 interface ShareModalProps {
@@ -16,18 +16,24 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   videoId,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
 
   if (!isOpen) return null;
 
   const shareUrl = window.location.href;
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(shareUrl);
-    if (videoId) {
-      void videoApi.recordShare(videoId).catch(() => {});
+    setIsCopying(true);
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      if (videoId) {
+        void videoApi.recordShare(videoId).catch(() => {});
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } finally {
+      setIsCopying(false);
     }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -59,11 +65,16 @@ export const ShareModal: React.FC<ShareModalProps> = ({
           />
           <button
             onClick={handleCopy}
+            disabled={isCopying || copied}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all ${
-              copied ? 'bg-[#4edea3] text-black' : 'bg-[#2f6bff] text-white hover:bg-[#2558d6]'
+              copied ? 'bg-[#4edea3] text-black' : 'bg-[#2f6bff] text-white hover:bg-[#2558d6] disabled:opacity-70'
             }`}
           >
-            {copied ? (
+            {isCopying ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Copying
+              </>
+            ) : copied ? (
               <>
                 <Check className="w-3.5 h-3.5" /> Copied
               </>

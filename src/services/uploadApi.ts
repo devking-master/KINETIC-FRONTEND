@@ -25,9 +25,17 @@ export const uploadApi = {
 
   async getSignature(): Promise<{ signature: string; timestamp: number; cloudName: string; apiKey: string; folder: string }> {
     const token = authApi.getToken();
+    if (!token) {
+      throw new Error('Your session has expired. Please sign in again before uploading.');
+    }
+
     const res = await fetch(`${API_BASE}/upload/signature`, {
       headers: { Authorization: `Bearer ${token}` },
     });
+    if (res.status === 401) {
+      authApi.removeToken();
+      throw new Error('Your session has expired. Please sign in again before uploading.');
+    }
     if (!res.ok) {
       throw new Error('Failed to obtain secure upload signature');
     }

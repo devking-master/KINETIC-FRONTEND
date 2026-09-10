@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Lock, Mail, Sparkles, LogOut, ArrowRight, ShieldCheck } from 'lucide-react';
+import { User, Lock, Mail, Sparkles, LogOut, ArrowRight, ShieldCheck, Loader2 } from 'lucide-react';
 import { authApi } from '../../services/authApi';
 import { AuthUser } from '../../types';
 
@@ -20,6 +20,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -39,6 +40,15 @@ export const AuthView: React.FC<AuthViewProps> = ({
       setErrorMsg(err instanceof Error ? err.message : 'Authentication failed');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await onLogout();
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
@@ -67,11 +77,12 @@ export const AuthView: React.FC<AuthViewProps> = ({
           </div>
 
           <button
-            onClick={onLogout}
-            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#F43F5E]/15 hover:bg-[#F43F5E]/25 text-[#F87171] font-bold text-xs border border-[#F43F5E]/30 transition-all"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#F43F5E]/15 hover:bg-[#F43F5E]/25 text-[#F87171] font-bold text-xs border border-[#F43F5E]/30 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
           >
-            <LogOut className="w-4 h-4" />
-            <span>Sign Out</span>
+            {isLoggingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
+            <span>{isLoggingOut ? 'Signing out...' : 'Sign Out'}</span>
           </button>
         </div>
       </div>
@@ -158,8 +169,17 @@ export const AuthView: React.FC<AuthViewProps> = ({
             disabled={isLoading}
             className="w-full py-3 rounded-full bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] hover:brightness-110 text-white font-bold text-xs shadow-lg shadow-[#6366F1]/30 transition-all flex items-center justify-center gap-2 mt-4"
           >
-            <span>{isSignup ? 'Sign Up' : 'Log In'}</span>
-            <ArrowRight className="w-4 h-4" />
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>{isSignup ? 'Creating account...' : 'Signing in...'}</span>
+              </>
+            ) : (
+              <>
+                <span>{isSignup ? 'Sign Up' : 'Log In'}</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
           </button>
         </form>
 

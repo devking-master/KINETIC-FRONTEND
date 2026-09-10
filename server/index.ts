@@ -92,7 +92,7 @@ connectDB().then(() => {
     console.log(`   API:    http://localhost:${PORT}/api\n`);
   });
 }).catch((err) => {
-  console.error('[Kinetic] Failed to start server:', err);
+  console.error('[Kinetic] Failed to start servers:', err);
   process.exit(1);
 });
 

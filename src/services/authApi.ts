@@ -60,6 +60,9 @@ export const authApi = {
         const body = await res.json();
         return body.user;
       }
+      if (res.status === 401) {
+        this.removeToken();
+      }
     } catch {
       // Offline fallback token check
     }
