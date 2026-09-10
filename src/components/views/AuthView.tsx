@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { User, Lock, Mail, Sparkles, LogOut, ArrowRight, ShieldCheck, Loader2 } from 'lucide-react';
+import { LogOut, ArrowRight, Loader2 } from 'lucide-react';
 import { authApi } from '../../services/authApi';
 import { AuthUser } from '../../types';
+import { KineticLogo } from '../KineticLogo';
 
 interface AuthViewProps {
   currentUser: AuthUser | null;
@@ -94,9 +95,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
       <div className="bg-[#131722] border border-[#1F273A] rounded-3xl p-8 shadow-2xl space-y-6">
         
         <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#6366F1] to-[#8B5CF6] flex items-center justify-center text-white mx-auto shadow-lg shadow-[#6366F1]/30">
-            <Sparkles className="w-6 h-6" />
-          </div>
+          <KineticLogo size="lg" animated className="justify-center mb-4" />
           <h2 className="text-2xl font-black text-white font-display">
             {isSignup ? 'Create Kinetic Account' : 'Welcome Back'}
           </h2>

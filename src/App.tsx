@@ -214,7 +214,9 @@ export default function App() {
           />
 
           {/* Persistent Docked Audio Player */}
-          <PlayerBar onNavigate={(tab) => handleNavigate(tab as ActiveTab)} />
+          {activeTab !== 'auth' && (
+            <PlayerBar onNavigate={(tab) => handleNavigate(tab as ActiveTab)} />
+          )}
         </>
       )}
 
