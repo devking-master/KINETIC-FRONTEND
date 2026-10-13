@@ -6,7 +6,7 @@ import { Navbar } from './components/layout/Navbar';
 import { MobileNav } from './components/layout/MobileNav';
 import { PlayerBar } from './components/PlayerBar';
 import { HomeView } from './components/views/HomeView';
-import { ShortsView } from './components/views/ShortsView';
+import { ShortsView } from './components/views/ShortsView.tsx';
 import { MusicView } from './components/views/MusicView';
 import { CreatorStudioView } from './components/views/CreatorStudioView';
 import { DiscoverView } from './components/views/DiscoverView';
@@ -122,7 +122,7 @@ export default function App() {
       )}
 
       {/* ========================================
-          SHORTS: Full-Screen TikTok Experience
+          SHORTS: Full-screen vertical feed
           Completely takes over the viewport.
           No navbar, no player, no padding.
       ======================================== */}
@@ -132,6 +132,8 @@ export default function App() {
           refreshKey={mediaRefreshKey}
           onSelectTrack={handlePlayTrack}
           onNavigate={handleNavigate}
+          currentUser={currentUser}
+          onOpenUploadModal={handleOpenUploadModal}
           onOpenShareModal={handleOpenShare}
           onOpenProfile={handleOpenProfile}
         />

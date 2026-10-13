@@ -39,7 +39,47 @@ const getVideos = async (endpoint: string): Promise<ShortVideo[]> => {
     .map((video: ApiVideo) => normalizeVideo(video));
 };
 
+export interface VideoFeedPage {
+  videos: ShortVideo[];
+  total: number;
+  page: number;
+  hasMore: boolean;
+  followingCount?: number;
+}
+
+const getFeedPage = async (endpoint: string, token?: string): Promise<VideoFeedPage> => {
+  const res = await fetch(endpoint, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+  if (!res.ok) throw new Error(`Video feed request failed (${res.status})`);
+  const data = await res.json();
+  return {
+    ...data,
+    videos: (data.videos || [])
+      .filter((video: ApiVideo) => typeof video.videoUrl === 'string' && video.videoUrl.length > 0)
+      .map((video: ApiVideo) => normalizeVideo(video)),
+  };
+};
+
 export const videoApi = {
+  async getFeedPage(page: number, following = false, token?: string): Promise<VideoFeedPage> {
+    const query = new URLSearchParams({ page: String(page), limit: '10' });
+    const endpoint = following
+      ? `${API_BASE}/videos/following?${query}`
+      : `${API_BASE}/videos?${query}`;
+    return getFeedPage(endpoint, token);
+  },
+
+  async toggleFollowCreator(userId: string, token: string): Promise<{ following: boolean }> {
+    const res = await fetch(`${API_BASE}/users/${userId}/follow`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.message || 'Unable to follow creator');
+    return body;
+  },
+
   async getTrendingVideos(): Promise<ShortVideo[]> {
     try {
       return await getVideos(`${API_BASE}/videos/trending`);

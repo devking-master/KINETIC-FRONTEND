@@ -408,13 +408,16 @@ router.post('/music/:id/like', requireAuth, socialLimiter, async (req: AuthReque
 // ============================================================
 router.get('/videos', async (req: Request, res: Response) => {
   try {
-    const page = Math.max(1, parseInt(String(req.query.page || '1')));
-    const limit = Math.min(50, parseInt(String(req.query.limit || '20')));
+    const page = Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1);
+    const limit = Math.min(50, Math.max(1, Number.parseInt(String(req.query.limit || '20'), 10) || 20));
     const skip = (page - 1) * limit;
 
-    // Your own uploads always come first; live provider videos fill out the rest.
-    const ownVideos = await Video.find().sort({ createdAt: -1 }).skip(skip).limit(limit);
+    // Treat uploads and provider results as one ordered sequence across pages.
     const ownTotal = await Video.countDocuments();
+    const ownCount = Math.max(0, Math.min(limit, ownTotal - skip));
+    const ownVideos = ownCount > 0
+      ? await Video.find().sort({ createdAt: -1 }).skip(skip).limit(ownCount)
+      : [];
 
     let apiVideos: Awaited<ReturnType<typeof getPexelsVideos>> = [];
     try {
@@ -424,13 +427,14 @@ router.get('/videos', async (req: Request, res: Response) => {
     }
 
     const remainingSlots = Math.max(0, limit - ownVideos.length);
-    const combined = [...ownVideos, ...apiVideos.slice(0, remainingSlots)];
+    const apiOffset = Math.max(0, skip + ownVideos.length - ownTotal);
+    const combined = [...ownVideos, ...apiVideos.slice(apiOffset, apiOffset + remainingSlots)];
 
     res.json({
       videos: combined,
       total: ownTotal + apiVideos.length,
       page,
-      hasMore: skip + ownVideos.length < ownTotal,
+      hasMore: skip + combined.length < ownTotal + apiVideos.length,
       source: ownVideos.length > 0 ? (apiVideos.length > 0 ? 'mixed' : 'database') : (apiVideos.length > 0 ? 'pexels' : 'database-seed'),
     });
   } catch (err) {
@@ -458,6 +462,29 @@ router.get('/videos/trending', async (_req: Request, res: Response) => {
     });
   } catch (err) {
     res.status(500).json({ message: 'Error fetching trending videos', error: err instanceof Error ? err.message : err });
+  }
+});
+
+router.get('/videos/following', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const page = Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1);
+    const limit = Math.min(50, Math.max(1, Number.parseInt(String(req.query.limit || '10'), 10) || 10));
+    const skip = (page - 1) * limit;
+    const follows = await Follow.find({ followerId: req.user!.id }).select('followingId');
+    const followingIds = follows.map((follow) => follow.followingId);
+    if (followingIds.length === 0) {
+      res.json({ videos: [], total: 0, page, hasMore: false, followingCount: 0 });
+      return;
+    }
+
+    const filter = { creator: { $in: followingIds } };
+    const [videos, total] = await Promise.all([
+      Video.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Video.countDocuments(filter),
+    ]);
+    res.json({ videos, total, page, hasMore: skip + videos.length < total, followingCount: followingIds.length });
+  } catch (err) {
+    res.status(500).json({ message: 'Error fetching followed creators videos', error: err instanceof Error ? err.message : err });
   }
 });
 
