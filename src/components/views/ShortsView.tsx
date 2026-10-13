@@ -18,12 +18,15 @@ import {
   Pause,
   Home,
   Compass,
-  Search
+  Search,
+  Flag,
 } from 'lucide-react';
 import { ShortVideo, Track, LiveComment, ActiveTab } from '../../types';
 import { videoApi } from '../../services/videoApi';
 import { authApi } from '../../services/authApi';
+import { getSocket, joinVideoRoom, leaveVideoRoom } from '../../services/socket';
 import { MediaLoadingState } from '../MediaLoadingState';
+import { ReportModal } from '../ui/ReportModal';
 
 const EMPTY_VIDEO: ShortVideo = {
   id: 'empty-video',
@@ -54,6 +57,7 @@ interface ShortsViewProps {
   onSelectTrack: (track: Track) => void;
   onNavigate: (tab: ActiveTab) => void;
   onOpenShareModal: (title: string, videoId?: string) => void;
+  onOpenProfile: (username: string) => void;
 }
 
 export const ShortsView: React.FC<ShortsViewProps> = ({
@@ -62,6 +66,7 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
   onSelectTrack,
   onNavigate,
   onOpenShareModal,
+  onOpenProfile,
 }) => {
   const [videos, setVideos] = useState<ShortVideo[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -85,6 +90,7 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
   ]);
   const [newCommentText, setNewCommentText] = useState('');
   const [lastTap, setLastTap] = useState(0);
+  const [reportTarget, setReportTarget] = useState<{ id: string; caption: string } | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const touchStartY = useRef<number>(0);
@@ -137,6 +143,54 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
       .catch(() => setInteractionError('Comments are temporarily unavailable.'));
   }, [isCommentsOpen, activeVideo.id]);
 
+  // ── Real-time Socket.io Layer for Comments & Likes ──
+  useEffect(() => {
+    if (!activeVideo.id || activeVideo.id === EMPTY_VIDEO.id) return;
+    const socket = getSocket();
+    joinVideoRoom(activeVideo.id);
+
+    const handleLiveComment = (data: { videoId: string; comment: any; commentsCount: number }) => {
+      if (data.videoId === activeVideo.id) {
+        const liveComment: LiveComment = {
+          id: data.comment._id || data.comment.id || String(Date.now()),
+          userHandle: data.comment.userHandle || '@creator',
+          userAvatar: data.comment.userAvatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=creator',
+          timeAgo: 'Just now',
+          text: data.comment.text,
+          likes: data.comment.likesCount || 0,
+        };
+        setComments((prev) => [liveComment, ...prev.filter((c) => c.id !== liveComment.id)]);
+        setVideos((prev) =>
+          prev.map((v) =>
+            v.id === data.videoId
+              ? { ...v, commentsCount: String(data.commentsCount) }
+              : v
+          )
+        );
+      }
+    };
+
+    const handleLiveLike = (data: { videoId: string; likesCount: number }) => {
+      setVideos((prev) =>
+        prev.map((v) =>
+          v.id === data.videoId
+            ? { ...v, likesCount: data.likesCount, likes: formatCount(data.likesCount) }
+            : v
+        )
+      );
+    };
+
+    socket.on('video:comment_added', handleLiveComment);
+    socket.on('video:like_updated', handleLiveLike);
+
+    return () => {
+      leaveVideoRoom(activeVideo.id);
+      socket.off('video:comment_added', handleLiveComment);
+      socket.off('video:like_updated', handleLiveLike);
+    };
+  }, [activeVideo.id]);
+
+  // ── Optimistic Like Handler ──
   const handleLike = async (forceLike = false) => {
     const token = authApi.getToken();
     if (!token) {
@@ -144,29 +198,67 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
       return;
     }
     if (forceLike && isLiked) return;
+
+    const prevLiked = isLiked;
+    const currentLikes = activeVideo.likesCount || 0;
+    const nextLiked = forceLike ? true : !prevLiked;
+    const nextCount = Math.max(0, currentLikes + (nextLiked ? 1 : -1));
+
+    // 1. Optimistic UI update
+    setLikedMap((prev) => ({ ...prev, [activeVideo.id]: nextLiked }));
+    setVideos((prev) =>
+      prev.map((video) =>
+        video.id === activeVideo.id
+          ? { ...video, likesCount: nextCount, likes: formatCount(nextCount), isLiked: nextLiked }
+          : video
+      )
+    );
+
     try {
       const result = await videoApi.toggleLikeVideo(activeVideo.id, token);
       setLikedMap((prev) => ({ ...prev, [activeVideo.id]: result.liked }));
       if (typeof result.likesCount === 'number') {
-        setVideos((prev) => prev.map((video) => video.id === activeVideo.id
-          ? { ...video, likesCount: result.likesCount, likes: formatCount(result.likesCount) }
-          : video));
+        setVideos((prev) =>
+          prev.map((video) =>
+            video.id === activeVideo.id
+              ? { ...video, likesCount: result.likesCount, likes: formatCount(result.likesCount), isLiked: result.liked }
+              : video
+          )
+        );
       }
     } catch (error) {
+      // Rollback on error
+      setLikedMap((prev) => ({ ...prev, [activeVideo.id]: prevLiked }));
+      setVideos((prev) =>
+        prev.map((video) =>
+          video.id === activeVideo.id
+            ? { ...video, likesCount: currentLikes, likes: formatCount(currentLikes), isLiked: prevLiked }
+            : video
+        )
+      );
       setInteractionError(error instanceof Error ? error.message : 'Unable to update like.');
     }
   };
 
+  // ── Optimistic Save Handler ──
   const handleSave = async () => {
     const token = authApi.getToken();
     if (!token) {
       setInteractionError('Sign in to save videos.');
       return;
     }
+    const prevSaved = isBookmarked;
+    const nextSaved = !prevSaved;
+
+    // 1. Optimistic UI update
+    setBookmarkedMap((prev) => ({ ...prev, [activeVideo.id]: nextSaved }));
+
     try {
       const result = await videoApi.toggleSaveVideo(activeVideo.id, token);
       setBookmarkedMap((prev) => ({ ...prev, [activeVideo.id]: result.saved }));
     } catch (error) {
+      // Rollback on error
+      setBookmarkedMap((prev) => ({ ...prev, [activeVideo.id]: prevSaved }));
       setInteractionError(error instanceof Error ? error.message : 'Unable to save video.');
     }
   };
@@ -406,13 +498,13 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
         )}
 
         {/* ──────────────────────────────────────
-            TOP UI: Header with nav tabs + back + mute
+          TOP UI: Header with nav tabs + back
         ────────────────────────────────────── */}
         <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-4 pt-12 pb-4 pointer-events-auto">
           {/* Back button */}
           <button
             onClick={(e) => { e.stopPropagation(); onNavigate('home'); }}
-            className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-black/60 transition-colors"
+            className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-black/60 active:scale-90 transition-all"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
@@ -434,30 +526,39 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
             ))}
           </div>
 
-          {/* Mute toggle */}
-          <button
-            onClick={(e) => { e.stopPropagation(); handleMuteToggle(); }}
-            className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-black/60 transition-colors"
-          >
-            {isMuted ? <VolumeX className="w-4 h-4 text-[#F43F5E]" /> : <Volume2 className="w-4 h-4" />}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={(e) => { e.stopPropagation(); navigateVideo('prev'); }}
+              disabled={isTransitioning || videos.length < 2}
+              aria-label="Previous Short"
+              className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-black/60 active:scale-90 transition-all disabled:opacity-40"
+            >
+              <ArrowUp className="w-5 h-5" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); navigateVideo('next'); }}
+              disabled={isTransitioning || videos.length < 2}
+              aria-label="Next Short"
+              className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-black/60 active:scale-90 transition-all disabled:opacity-40"
+            >
+              <ArrowDown className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* ──────────────────────────────────────
             RIGHT SIDEBAR: TikTok-style action buttons
         ────────────────────────────────────── */}
         <div
-          className="absolute right-3 bottom-32 z-30 flex flex-col items-center gap-5 pointer-events-auto"
+          className="absolute right-3 bottom-6 z-30 flex flex-col items-center gap-2 pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Creator Avatar + Follow */}
           <div className="relative mb-1">
             {activeVideo.creatorAvatar && (
-              <img
-                src={activeVideo.creatorAvatar}
-                alt={activeVideo.creatorName}
-                className="w-12 h-12 rounded-full border-2 border-white object-cover shadow-xl"
-              />
+              <button onClick={() => onOpenProfile(activeVideo.creatorHandle.replace(/^@/, ''))} title="Open creator profile">
+                <img src={activeVideo.creatorAvatar} alt={activeVideo.creatorName} className="w-12 h-12 rounded-full border-2 border-white object-cover shadow-xl" />
+              </button>
             )}
             <button
               onClick={() => setFollowingMap((prev) => ({ ...prev, [activeVideo.creatorHandle]: !isFollowing }))}
@@ -472,12 +573,12 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
           {/* Like */}
           <button
             onClick={() => void handleLike()}
-            className="flex flex-col items-center gap-1"
+            className="flex flex-col items-center gap-0.5"
           >
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-transform active:scale-90 ${
+            <div className={`w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all hover:bg-black/60 active:scale-90 ${
               isLiked ? 'text-[#F43F5E]' : 'text-white'
             }`}>
-              <Heart className={`w-7 h-7 drop-shadow-lg ${isLiked ? 'fill-[#F43F5E]' : 'fill-white/20'}`} />
+              <Heart className={`w-6 h-6 drop-shadow-lg ${isLiked ? 'fill-[#F43F5E]' : 'fill-white/20'}`} />
             </div>
             <span className="text-[11px] font-bold text-white drop-shadow-md">
               {activeVideo.likes}
@@ -487,10 +588,10 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
           {/* Comments */}
           <button
             onClick={() => setIsCommentsOpen(true)}
-            className="flex flex-col items-center gap-1"
+            className="flex flex-col items-center gap-0.5"
           >
-            <div className="w-12 h-12 rounded-full flex items-center justify-center text-white active:scale-90 transition-transform">
-              <MessageCircle className="w-7 h-7 fill-white/20 drop-shadow-lg" />
+            <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-black/60 active:scale-90 transition-all">
+              <MessageCircle className="w-6 h-6 fill-white/20 drop-shadow-lg" />
             </div>
             <span className="text-[11px] font-bold text-white drop-shadow-md">
               {activeVideo.commentsCount}
@@ -500,12 +601,12 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
           {/* Bookmark */}
           <button
             onClick={() => void handleSave()}
-            className="flex flex-col items-center gap-1"
+            className="flex flex-col items-center gap-0.5"
           >
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-transform active:scale-90 ${
+            <div className={`w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all hover:bg-black/60 active:scale-90 ${
               isBookmarked ? 'text-[#06B6D4]' : 'text-white'
             }`}>
-              <Bookmark className={`w-7 h-7 drop-shadow-lg ${isBookmarked ? 'fill-[#06B6D4]' : 'fill-white/20'}`} />
+              <Bookmark className={`w-6 h-6 drop-shadow-lg ${isBookmarked ? 'fill-[#06B6D4]' : 'fill-white/20'}`} />
             </div>
             <span className="text-[11px] font-bold text-white drop-shadow-md">
               {isBookmarked ? 'Saved' : 'Save'}
@@ -515,12 +616,35 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
           {/* Share */}
           <button
             onClick={() => onOpenShareModal(activeVideo.caption, activeVideo.id)}
-            className="flex flex-col items-center gap-1"
+            className="flex flex-col items-center gap-0.5"
           >
-            <div className="w-12 h-12 rounded-full flex items-center justify-center text-white active:scale-90 transition-transform">
-              <Share2 className="w-7 h-7 fill-white/20 drop-shadow-lg" />
+            <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-black/60 active:scale-90 transition-all">
+              <Share2 className="w-6 h-6 fill-white/20 drop-shadow-lg" />
             </div>
             <span className="text-[11px] font-bold text-white drop-shadow-md">Share</span>
+          </button>
+
+          {/* Report */}
+          <button
+            onClick={() => setReportTarget({ id: activeVideo.id, caption: activeVideo.caption })}
+            className="flex flex-col items-center gap-0.5 opacity-60 hover:opacity-100 transition-opacity"
+          >
+            <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-black/60 active:scale-90 transition-all">
+              <Flag className="w-6 h-6 drop-shadow-lg" />
+            </div>
+            <span className="text-[11px] font-bold text-white drop-shadow-md">Report</span>
+          </button>
+
+          {/* Mute */}
+          <button
+            onClick={() => handleMuteToggle()}
+            className="flex flex-col items-center gap-0.5"
+            aria-label={isMuted ? 'Unmute video' : 'Mute video'}
+          >
+            <span className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-black/60 active:scale-90 transition-all">
+              {isMuted ? <VolumeX className="w-6 h-6 text-[#F43F5E]" /> : <Volume2 className="w-6 h-6" />}
+            </span>
+            <span className="text-[11px] font-bold text-white drop-shadow-md">Sound</span>
           </button>
 
           {/* Rotating Vinyl / Audio Disc */}
@@ -533,7 +657,7 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
               coverUrl: activeVideo.thumbnailUrl,
               duration: 180,
             })}
-            className="w-12 h-12 rounded-full border-[3px] border-white/60 overflow-hidden shadow-2xl animate-spin-record mt-1"
+            className="w-10 h-10 rounded-full border-[3px] border-white/60 overflow-hidden shadow-2xl animate-spin-record mt-1 active:scale-90"
           >
             {activeVideo.thumbnailUrl && (
               <img src={activeVideo.thumbnailUrl} alt="Audio disc" className="w-full h-full object-cover" />
@@ -545,13 +669,13 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
             BOTTOM LEFT: Creator info + caption + sound
         ────────────────────────────────────── */}
         <div
-          className="absolute left-4 right-20 bottom-24 z-30 space-y-2 pointer-events-auto"
+          className="absolute left-4 right-24 bottom-6 z-30 space-y-2 pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center gap-2">
-            <span className="text-sm font-extrabold text-white drop-shadow-lg font-display">
+            <button onClick={() => onOpenProfile(activeVideo.creatorHandle.replace(/^@/, ''))} className="text-sm font-extrabold text-white drop-shadow-lg font-display hover:underline">
               {activeVideo.creatorName}
-            </span>
+            </button>
             <span className="text-xs text-white/70 font-medium">{activeVideo.creatorHandle}</span>
             {activeVideo.verified && (
               <span className="w-4 h-4 bg-[#6366F1] rounded-full flex items-center justify-center">
@@ -571,43 +695,6 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
               {activeVideo.audioTrackTitle} • {activeVideo.audioArtist}
             </span>
           </div>
-        </div>
-
-        {/* ──────────────────────────────────────
-            BOTTOM NAVIGATION: Prev / Next Video Arrows
-        ────────────────────────────────────── */}
-        <div 
-          className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-4 pointer-events-auto"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={() => navigateVideo('prev')}
-            disabled={isTransitioning}
-            className="w-12 h-12 rounded-full bg-black/50 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-xl transition-all hover:bg-black/70 active:scale-90 disabled:opacity-50"
-            title="Previous Video (↑)"
-          >
-            <ArrowUp className="w-5 h-5" />
-          </button>
-
-          <button
-            onClick={(e) => { e.stopPropagation(); togglePlayPause(); }}
-            className="w-14 h-14 rounded-full bg-[#6366F1] hover:bg-[#8B5CF6] text-white flex items-center justify-center shadow-xl shadow-[#6366F1]/40 transition-all active:scale-90"
-            title="Play/Pause (Space)"
-          >
-            {isPlaying 
-              ? <Pause className="w-6 h-6 fill-white" /> 
-              : <Play className="w-6 h-6 fill-white ml-0.5" />
-            }
-          </button>
-
-          <button
-            onClick={() => navigateVideo('next')}
-            disabled={isTransitioning}
-            className="w-12 h-12 rounded-full bg-black/50 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-xl transition-all hover:bg-black/70 active:scale-90 disabled:opacity-50"
-            title="Next Video (↓)"
-          >
-            <ArrowDown className="w-5 h-5" />
-          </button>
         </div>
 
         {/* ──────────────────────────────────────
@@ -652,10 +739,10 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
             <div className="flex-1 overflow-y-auto space-y-4 pr-1 no-scrollbar">
               {comments.map((c) => (
                 <div key={c.id} className="flex gap-3">
-                  <img src={c.userAvatar} alt={c.userHandle} className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+                  <button onClick={() => onOpenProfile(c.userHandle.replace(/^@/, ''))} title="Open commenter profile"><img src={c.userAvatar} alt={c.userHandle} className="w-9 h-9 rounded-full object-cover flex-shrink-0" /></button>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-bold text-white">{c.userHandle}</span>
+                      <button onClick={() => onOpenProfile(c.userHandle.replace(/^@/, ''))} className="text-xs font-bold text-white hover:underline">{c.userHandle}</button>
                       <span className="text-[10px] text-[#64748B]">{c.timeAgo}</span>
                     </div>
                     <p className="text-xs text-[#CBD5E1] leading-relaxed">{c.text}</p>

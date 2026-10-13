@@ -16,6 +16,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { html5Player, PlayerState } from '../services/html5Player';
+import { clearTrackCache } from '../services/musicApi';
 import { KineticLogo } from './KineticLogo';
 
 interface PlayerBarProps {
@@ -253,7 +254,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({ onNavigate }) => {
                   <p className="text-sm text-[#94A3B8] truncate mt-0.5">{track.artist}</p>
                 </div>
                 <button
-                  onClick={() => setIsLikedTrack(!isLikedTrack)}
+                  onClick={() => { setIsLikedTrack(!isLikedTrack); clearTrackCache(); }}
                   className={`p-2 rounded-full transition-colors shrink-0 ${isLikedTrack ? 'text-[#F43F5E]' : 'text-[#64748B] hover:text-white'}`}
                 >
                   <Heart className={`w-5 h-5 ${isLikedTrack ? 'fill-[#F43F5E]' : ''}`} />
@@ -388,7 +389,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({ onNavigate }) => {
             </div>
 
             <button
-              onClick={() => setIsLikedTrack(!isLikedTrack)}
+              onClick={() => { setIsLikedTrack(!isLikedTrack); clearTrackCache(); }}
               className={`hidden lg:block p-1.5 rounded-full transition-colors ${
                 isLikedTrack ? 'text-[#F43F5E]' : 'text-[#64748B] hover:text-white'
               }`}

@@ -36,4 +36,11 @@ const TrackSchema: Schema = new Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+TrackSchema.index({ createdAt: -1 });
+TrackSchema.index({ uploadedBy: 1, createdAt: -1 });
+TrackSchema.index({ title: 1 });
+TrackSchema.index({ artist: 1 });
+TrackSchema.index({ genre: 1 });
+TrackSchema.index({ title: 'text', artist: 'text', album: 'text', genre: 'text' });
+
 export const Track = mongoose.model<ITrack>('Track', TrackSchema);

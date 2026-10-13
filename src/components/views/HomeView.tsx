@@ -17,38 +17,55 @@ import { Track, ShortVideo, ActiveTab } from '../../types';
 import { musicApi } from '../../services/musicApi';
 import { videoApi } from '../../services/videoApi';
 import { MediaLoadingState } from '../MediaLoadingState';
+import { StateFeedback } from '../ui/StateFeedback';
 
 interface HomeViewProps {
   onPlayTrack: (track: Track) => void;
   onSelectShort: (short: ShortVideo) => void;
+  onOpenWatch: (video: ShortVideo) => void;
+  onOpenProfile: (username: string) => void;
   onNavigate: (tab: ActiveTab) => void;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
   onPlayTrack,
   onSelectShort,
+  onOpenWatch,
+  onOpenProfile,
   onNavigate,
 }) => {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [videos, setVideos] = useState<ShortVideo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isWakingServer, setIsWakingServer] = useState(false);
+  const [hasLoadError, setHasLoadError] = useState(false);
+
+  const loadHomeTracks = async () => {
+    setIsLoading(true);
+    setHasLoadError(false);
+    try {
+      const fetchedTracks = await musicApi.getTrendingTracks();
+      setTracks(fetchedTracks);
+    } catch {
+      setHasLoadError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadHomeContent = async () => {
-      setIsLoading(true);
-      try {
-        const [fetchedTracks, fetchedVideos] = await Promise.all([
-          musicApi.getTrendingTracks(),
-          videoApi.getTrendingVideos(),
-        ]);
-        setTracks(fetchedTracks);
-        setVideos(fetchedVideos);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadHomeContent();
+    void loadHomeTracks();
+    videoApi.getTrendingVideos().then(setVideos).catch(() => setVideos([]));
   }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setIsWakingServer(false);
+      return;
+    }
+    const timer = setTimeout(() => setIsWakingServer(true), 4000);
+    return () => clearTimeout(timer);
+  }, [isLoading]);
 
   const heroTrack = tracks[0];
 
@@ -64,8 +81,20 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
   return (
     <div className="space-y-10 pb-28 pt-2 animate-in fade-in duration-300">
-      {isLoading && <MediaLoadingState />}
-      {!isLoading && !heroTrack && (
+      {isLoading && (
+        <div>
+          <MediaLoadingState />
+          {isWakingServer && <p className="-mt-10 pb-8 text-center text-xs text-[#94A3B8]">Waking up the server, this can take a few seconds</p>}
+        </div>
+      )}
+      {hasLoadError && !isLoading && (
+        <StateFeedback
+          state="error"
+          message="Couldn't load music. Check your connection and try again."
+          action={{ label: 'Retry', onClick: () => { void loadHomeTracks(); } }}
+        />
+      )}
+      {!isLoading && !hasLoadError && !heroTrack && (
         <div className="rounded-3xl border border-[#1F273A] bg-[#131722] px-6 py-12 text-center text-sm text-[#94A3B8]">
           Live media is unavailable right now. Please try again shortly.
         </div>
@@ -187,7 +216,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           {videos.map((v, index) => (
             <div
               key={`short-video-${v.id}-${index}`}
-              onClick={() => onSelectShort(v)}
+              onClick={() => onOpenWatch(v)}
               onMouseEnter={(event) => {
                 const preview = event.currentTarget.querySelector<HTMLVideoElement>('video');
                 if (preview) playPreview(preview);
@@ -204,7 +233,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   poster={v.thumbnailUrl || undefined}
                   muted
                   playsInline
-                  preload="metadata"
+                  preload="none"
                   aria-label={v.caption}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
@@ -212,17 +241,20 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 <img src={v.thumbnailUrl} alt={v.caption} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
               )}
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent p-4 flex flex-col justify-between">
-                <div className="flex justify-end">
+                <div className="flex items-start justify-between">
+                  <span className="w-9 h-9 rounded-full bg-black/45 backdrop-blur-sm grid place-items-center text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Play className="w-4 h-4 fill-white" />
+                  </span>
                   <span className="text-[10px] font-bold text-white bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/20">
-                    {v.views} views
+                    {Math.round(v.duration)}s · {v.views} views
                   </span>
                 </div>
 
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2">
+                  <button onClick={(event) => { event.stopPropagation(); onOpenProfile(v.creatorHandle.replace(/^@/, '')); }} className="flex items-center gap-2 text-left">
                     <img src={v.creatorAvatar} alt={v.creatorName} className="w-6 h-6 rounded-full border border-white/40 object-cover" />
-                    <span className="text-xs font-bold text-white truncate">{v.creatorName}</span>
-                  </div>
+                    <span className="text-xs font-bold text-white truncate hover:underline">{v.creatorName}</span>
+                  </button>
                   <p className="text-xs text-white/90 font-medium line-clamp-2 leading-snug">
                     {v.caption}
                   </p>

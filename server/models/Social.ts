@@ -22,6 +22,9 @@ const CommentSchema: Schema = new Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+CommentSchema.index({ videoId: 1, createdAt: -1 });
+CommentSchema.index({ userId: 1, createdAt: -1 });
+
 export const Comment = mongoose.model<IComment>('Comment', CommentSchema);
 
 export interface ILike extends Document {
@@ -39,6 +42,7 @@ const LikeSchema: Schema = new Schema({
 });
 
 LikeSchema.index({ userId: 1, targetId: 1, targetType: 1 }, { unique: true });
+LikeSchema.index({ targetId: 1, targetType: 1 });
 
 export const Like = mongoose.model<ILike>('Like', LikeSchema);
 
@@ -55,5 +59,6 @@ const FollowSchema: Schema = new Schema({
 });
 
 FollowSchema.index({ followerId: 1, followingId: 1 }, { unique: true });
+FollowSchema.index({ followingId: 1 });
 
 export const Follow = mongoose.model<IFollow>('Follow', FollowSchema);

@@ -3,6 +3,7 @@ import { Heart, Bookmark, ListMusic, Plus, Play, Music2, Library } from 'lucide-
 import { Track, ActiveTab } from '../../types';
 import { musicApi } from '../../services/musicApi';
 import { MediaLoadingState } from '../MediaLoadingState';
+import { StateFeedback } from '../ui/StateFeedback';
 
 interface LibraryViewProps {
   onPlayTrack: (track: Track) => void;
@@ -12,18 +13,34 @@ interface LibraryViewProps {
 export const LibraryView: React.FC<LibraryViewProps> = ({ onPlayTrack, onNavigate }) => {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isWakingServer, setIsWakingServer] = useState(false);
+  const [hasLoadError, setHasLoadError] = useState(false);
+
+  const loadTracks = async () => {
+    setIsLoading(true);
+    setHasLoadError(false);
+    try {
+      const fetched = await musicApi.getAllTracks();
+      setTracks(fetched);
+    } catch {
+      setHasLoadError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadTracks = async () => {
-      try {
-        const fetched = await musicApi.getAllTracks();
-        setTracks(fetched);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadTracks();
+    void loadTracks();
   }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setIsWakingServer(false);
+      return;
+    }
+    const timer = setTimeout(() => setIsWakingServer(true), 4000);
+    return () => clearTimeout(timer);
+  }, [isLoading]);
 
   return (
     <div className="space-y-8 pb-28 pt-2 animate-in fade-in duration-300">
@@ -42,7 +59,19 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ onPlayTrack, onNavigat
         </button>
       </div>
 
-      {isLoading && <MediaLoadingState />}
+      {isLoading && (
+        <div>
+          <MediaLoadingState />
+          {isWakingServer && <p className="-mt-10 pb-8 text-center text-xs text-[#94A3B8]">Waking up the server, this can take a few seconds</p>}
+        </div>
+      )}
+      {hasLoadError && !isLoading && (
+        <StateFeedback
+          state="error"
+          message="Couldn't load music. Check your connection and try again."
+          action={{ label: 'Retry', onClick: () => { void loadTracks(); } }}
+        />
+      )}
 
       {/* Liked Songs Banner */}
       <div 

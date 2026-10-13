@@ -20,4 +20,7 @@ const PlaylistSchema: Schema = new Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+PlaylistSchema.index({ owner: 1, createdAt: -1 });
+PlaylistSchema.index({ createdAt: -1 });
+
 export const Playlist = mongoose.model<IPlaylist>('Playlist', PlaylistSchema);

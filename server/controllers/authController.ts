@@ -4,13 +4,30 @@ import jwt from 'jsonwebtoken';
 import { User } from '../models/User';
 import { AuthRequest } from '../middleware/auth';
 
-const generateToken = (user: { _id: unknown; email: string; username: string; role: string }): string => {
-  const secret = process.env.JWT_SECRET || 'kinetic-super-secret-key-2026';
+const REFRESH_COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+const getJwtSecret = (): string => process.env.JWT_SECRET || 'kinetic-super-secret-key-2026';
+
+const generateAccessToken = (user: { _id: unknown; email: string; username: string; role: string }): string => {
   return jwt.sign(
     { id: String(user._id), email: user.email, username: user.username, role: user.role },
-    secret,
-    { expiresIn: '7d' }
+    getJwtSecret(),
+    { expiresIn: '1h' }
   );
+};
+
+const generateRefreshToken = (userId: string, tokenVersion: number): string => {
+  return jwt.sign({ id: userId, tokenVersion }, getJwtSecret(), { expiresIn: '30d' });
+};
+
+const setRefreshCookie = (res: Response, token: string) => {
+  res.cookie('refreshToken', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: REFRESH_COOKIE_MAX_AGE,
+    path: '/api/auth',
+  });
 };
 
 export const signup = async (req: Request, res: Response): Promise<void> => {
@@ -40,7 +57,9 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
       avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(username)}`,
     });
 
-    const token = generateToken(user);
+    const token = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(String(user._id), user.tokenVersion ?? 0);
+    setRefreshCookie(res, refreshToken);
 
     res.status(201).json({
       token,
@@ -50,6 +69,7 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
         username: user.username,
         email: user.email,
         avatarUrl: user.avatarUrl,
+        coverUrl: user.coverUrl,
         bio: user.bio,
         role: user.role,
         followersCount: user.followersCount,
@@ -85,7 +105,9 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const token = generateToken(user);
+    const token = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(String(user._id), user.tokenVersion ?? 0);
+    setRefreshCookie(res, refreshToken);
 
     res.status(200).json({
       token,
@@ -95,6 +117,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         username: user.username,
         email: user.email,
         avatarUrl: user.avatarUrl,
+        coverUrl: user.coverUrl,
         bio: user.bio,
         role: user.role,
         followersCount: user.followersCount,

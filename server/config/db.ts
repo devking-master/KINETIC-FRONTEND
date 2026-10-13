@@ -47,15 +47,20 @@ const seedAdminAccountIfMissing = async () => {
 };
 
 export const connectDB = async (): Promise<void> => {
-  try {
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/kinetic';
-    await mongoose.connect(mongoUri);
-    console.log('[Kinetic DB] MongoDB connection status: CONNECTED');
-    await removeLegacyDemoContent();
-    await seedAdminAccountIfMissing();
-  } catch (error) {
-    console.warn(`[Kinetic DB] Local MongoDB connection note: ${error instanceof Error ? error.message : error}. Running in resilient offline/fallback state mode.`);
+  const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/kinetic';
+  while (true) {
+    try {
+      await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 8000 });
+      console.log('[Kinetic DB] MongoDB connection status: CONNECTED');
+      break;
+    } catch (error) {
+      console.warn(`[Kinetic DB] Connection failed: ${error instanceof Error ? error.message : error}. Retrying in 5 seconds.`);
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+    }
   }
+
+  await removeLegacyDemoContent();
+  await seedAdminAccountIfMissing();
 };
 
 export const getDatabaseStatus = () => {

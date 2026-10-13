@@ -1,9 +1,52 @@
 import { Track } from '../types';
 import { authApi } from './authApi';
+import { fetchWithRetry } from './fetchWithRetry';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 type ApiTrack = Track & { _id?: string; createdAt?: string; playsCount?: number; likesCount?: number };
+const TRACK_CACHE_TTL_MS = 5 * 60 * 1000;
+const trackRequestCache = new Map<string, { value: unknown; expiresAt: number }>();
+const inFlightTrackRequests = new Map<string, Promise<unknown>>();
+let trackCacheGeneration = 0;
+
+export const clearTrackCache = () => {
+  trackCacheGeneration += 1;
+  trackRequestCache.clear();
+  inFlightTrackRequests.clear();
+};
+
+const hasApiTracks = (value: unknown): boolean => {
+  const tracks = Array.isArray(value)
+    ? value
+    : typeof value === 'object' && value !== null && 'tracks' in value
+      ? (value as { tracks?: unknown }).tracks
+      : undefined;
+  return Array.isArray(tracks) && tracks.some((track) =>
+    typeof track === 'object' && track !== null && 'source' in track && track.source === 'api'
+  );
+};
+
+const cachedTrackRequest = <T>(key: string, request: () => Promise<T>): Promise<T> => {
+  const cached = trackRequestCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.value as T);
+
+  const inFlight = inFlightTrackRequests.get(key);
+  if (inFlight) return inFlight as Promise<T>;
+
+  const generation = trackCacheGeneration;
+  let pending: Promise<T>;
+  pending = request().then((value) => {
+    if (generation === trackCacheGeneration && hasApiTracks(value)) {
+      trackRequestCache.set(key, { value, expiresAt: Date.now() + TRACK_CACHE_TTL_MS });
+    }
+    return value;
+  }).finally(() => {
+    if (inFlightTrackRequests.get(key) === pending) inFlightTrackRequests.delete(key);
+  });
+  inFlightTrackRequests.set(key, pending);
+  return pending;
+};
 
 const LEGACY_TRACK_COVER = 'images.unsplash.com/photo-1511671782779-c97d3d27a1d4';
 
@@ -20,39 +63,26 @@ const normalizeTrack = (track: ApiTrack, sourceFallback: Track['source'] = 'user
 
 export const musicApi = {
   async getTrendingTracks(): Promise<Track[]> {
-    try {
-      const res = await fetch(`${API_BASE}/music/trending`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.tracks && data.tracks.length > 0) {
-          return data.tracks.map((t: ApiTrack) => normalizeTrack(t));
-        }
-      }
-    } catch {
-      return [];
-    }
-    return [];
+    return cachedTrackRequest('trending', async () => {
+      const res = await fetchWithRetry(`${API_BASE}/music/trending`);
+      if (!res.ok) throw new Error('Failed to fetch trending tracks');
+      const data = await res.json();
+      return (data.tracks || []).map((track: ApiTrack) => normalizeTrack(track));
+    });
   },
 
   async getAllTracks(): Promise<Track[]> {
-    try {
-      const res = await fetch(`${API_BASE}/music`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.tracks && data.tracks.length > 0) {
-          const userTracks = data.tracks.map((t: ApiTrack) => normalizeTrack(t));
-          return userTracks;
-        }
-      }
-    } catch {
-      return [];
-    }
-    return [];
+    return cachedTrackRequest('all-tracks', async () => {
+      const res = await fetchWithRetry(`${API_BASE}/music`);
+      if (!res.ok) throw new Error('Failed to fetch tracks');
+      const data = await res.json();
+      return (data.tracks || []).map((track: ApiTrack) => normalizeTrack(track));
+    });
   },
 
   async getMyTracks(): Promise<(Track & { createdAt?: string; playsCount?: number; likesCount?: number })[]> {
     const token = authApi.getToken();
-    const res = await fetch(`${API_BASE}/music/mine`, {
+    const res = await fetchWithRetry(`${API_BASE}/music/mine`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) {
@@ -64,7 +94,7 @@ export const musicApi = {
 
   async searchMusic(query: string): Promise<{ tracks: Track[]; videos: unknown[] }> {
     try {
-      const res = await fetch(`${API_BASE}/music/search?q=${encodeURIComponent(query)}`);
+      const res = await fetchWithRetry(`${API_BASE}/music/search?q=${encodeURIComponent(query)}`);
       if (res.ok) {
         const data = await res.json();
         return {
@@ -74,6 +104,27 @@ export const musicApi = {
       }
     } catch {
       return { tracks: [], videos: [] };
+    }
+    return { tracks: [], videos: [] };
+  },
+
+  async getRecommended(): Promise<{ tracks: Track[]; videos: unknown[]; personalized: boolean }> {
+    try {
+      const token = authApi.getToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      return await cachedTrackRequest(`recommended:${token || 'anonymous'}`, async () => {
+        const res = await fetchWithRetry(`${API_BASE}/discover/recommended`, { headers });
+        if (!res.ok) throw new Error('Failed to fetch recommendations');
+        const data = await res.json();
+        return {
+          tracks: (data.tracks || []).map((track: ApiTrack) => normalizeTrack(track)),
+          videos: data.videos || [],
+          personalized: data.personalized ?? false,
+        };
+      });
+    } catch {
+      throw new Error('Failed to fetch recommendations');
     }
   },
 };

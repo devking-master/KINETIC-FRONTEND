@@ -1,8 +1,12 @@
+import http from 'http';
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
+import helmet from 'helmet';
 import { connectDB, getDatabaseStatus } from './config/db';
 import apiRouter from './routes/api';
+import { initSocket } from './services/socketService';
 
 dotenv.config();
 
@@ -42,17 +46,17 @@ app.use(cors({
   credentials: true,
 }));
 
-// ── Body Parsers ──
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// ── Security Headers (Helmet) ──
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 
-// ── Security Headers ──
-app.use((_req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  next();
-});
+// ── Body Parsers (Cloudinary handles signed media uploads directly) ──
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+app.use(cookieParser());
 
 // ── Health Check ──
 app.get('/api/health', (_req, res) => {
@@ -84,16 +88,19 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   });
 });
 
-// ── Start Server ──
-connectDB().then(() => {
-  app.listen(PORT, () => {
+export const httpServer = http.createServer(app);
+initSocket(httpServer, allowedOrigins);
+
+if (process.env.NODE_ENV !== 'test') {
+  httpServer.listen(PORT, () => {
     console.log(`\n🎵 Kinetic Backend Server running at http://localhost:${PORT}`);
     console.log(`   Health: http://localhost:${PORT}/api/health`);
     console.log(`   API:    http://localhost:${PORT}/api\n`);
+
+    connectDB().catch((err) => {
+      console.error('[Kinetic] Database initialization failed:', err);
+    });
   });
-}).catch((err) => {
-  console.error('[Kinetic] Failed to start servers:', err);
-  process.exit(1);
-});
+}
 
 export default app;

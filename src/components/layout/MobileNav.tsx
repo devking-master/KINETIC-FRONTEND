@@ -8,6 +8,7 @@ interface MobileNavProps {
   onOpenUploadModal: () => void;
   currentUser: AuthUser | null;
   onOpenAuth: () => void;
+  onOpenProfile: () => void;
 }
 
 export const MobileNav: React.FC<MobileNavProps> = ({
@@ -16,6 +17,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   onOpenUploadModal,
   currentUser,
   onOpenAuth,
+  onOpenProfile,
 }) => {
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#080A0F]/90 backdrop-blur-xl border-t border-[#1F273A] px-2 py-2 flex items-center justify-around">
@@ -64,18 +66,18 @@ export const MobileNav: React.FC<MobileNavProps> = ({
       <button
         onClick={() => {
           if (currentUser) {
-            onNavigate('library');
+            onOpenProfile();
           } else {
             onOpenAuth();
           }
         }}
         className={`flex flex-col items-center gap-1 px-3 py-1 transition-all ${
-          activeTab === 'library' || activeTab === 'auth' ? 'text-[#6366F1]' : 'text-[#64748B] hover:text-white'
+          activeTab === 'library' || activeTab === 'profile' || activeTab === 'auth' ? 'text-[#6366F1]' : 'text-[#64748B] hover:text-white'
         }`}
       >
         <User className="w-5 h-5" />
         <span className="text-[10px] font-bold tracking-tight">
-          {currentUser ? 'Library' : 'Sign In'}
+          {currentUser ? 'Profile' : 'Sign In'}
         </span>
       </button>
     </nav>

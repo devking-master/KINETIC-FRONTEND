@@ -16,7 +16,7 @@ import {
   LogOut,
   Loader2
 } from 'lucide-react';
-import { ActiveTab, AuthUser, Track } from '../../types';
+import { ActiveTab, AuthUser, Track, ShortVideo } from '../../types';
 import { musicApi } from '../../services/musicApi';
 import { KineticLogo } from '../KineticLogo';
 
@@ -29,6 +29,8 @@ interface NavbarProps {
   onOpenAuth: () => void;
   onLogout: () => Promise<void> | void;
   isPlaying?: boolean;
+  onOpenProfile: (username?: string) => void;
+  onOpenWatch?: (video: ShortVideo) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -40,6 +42,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAuth,
   onLogout,
   isPlaying,
+  onOpenProfile,
+  onOpenWatch,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{ tracks: Track[]; videos: unknown[] }>({ tracks: [], videos: [] });
@@ -145,7 +149,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="absolute top-full left-0 right-0 mt-2 bg-[#131722] border border-[#1F273A] rounded-2xl shadow-2xl overflow-hidden z-50 p-2 space-y-2 animate-in fade-in slide-in-from-top-2">
               {isSearching ? (
                 <div className="p-4 text-center text-xs text-[#94A3B8]">Searching Kinetic index...</div>
-              ) : searchResults.tracks.length === 0 ? (
+              ) : searchResults.tracks.length === 0 && searchResults.videos.length === 0 ? (
                 <div className="p-4 text-center text-xs text-[#94A3B8]">No results found for "{searchQuery}"</div>
               ) : (
                 <div>
@@ -171,6 +175,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </span>
                     </button>
                   ))}
+                  {searchResults.videos.slice(0, 4).map((rawVideo) => {
+                    const video = rawVideo as ShortVideo & { _id?: string };
+                    const normalized: ShortVideo = { ...video, id: video.id || video._id || `search-${video.caption}`, thumbnailUrl: video.thumbnailUrl || '', duration: video.duration || 0 };
+                    return <button key={normalized.id} onClick={() => { onOpenWatch?.(normalized); setShowSearchDropdown(false); }} className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-[#1B2130] text-left transition-colors"><img src={normalized.thumbnailUrl} alt="" className="w-9 h-9 rounded-lg object-cover" /><div className="flex-1 min-w-0"><div className="text-xs font-bold text-white truncate">{normalized.caption}</div><span onClick={(event) => { event.stopPropagation(); onOpenProfile(normalized.creatorHandle.replace(/^@/, '')); }} className="block text-[11px] text-[#94A3B8] truncate hover:underline">{normalized.creatorName}</span></div><span className="text-[10px] font-semibold text-[#6366F1]">Watch</span></button>;
+                  })}
                 </div>
               )}
             </div>
@@ -214,7 +223,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             onClick={() => {
               if (currentUser) {
-                onNavigate('auth');
+                onOpenProfile();
               } else {
                 onOpenAuth();
               }

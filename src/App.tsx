@@ -12,12 +12,16 @@ import { CreatorStudioView } from './components/views/CreatorStudioView';
 import { DiscoverView } from './components/views/DiscoverView';
 import { LibraryView } from './components/views/LibraryView';
 import { AuthView } from './components/views/AuthView';
+import { ProfileView } from './components/views/ProfileView';
+import { WatchView } from './components/views/WatchView';
 import { UploadModal } from './components/UploadModal';
 import { ShareModal } from './components/ShareModal';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('home');
   const [selectedShort, setSelectedShort] = useState<ShortVideo | undefined>(undefined);
+  const [selectedVideo, setSelectedVideo] = useState<ShortVideo | undefined>(undefined);
+  const [viewedUsername, setViewedUsername] = useState<string | undefined>(undefined);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [shareConfig, setShareConfig] = useState<{ isOpen: boolean; title: string; videoId?: string }>({
@@ -25,7 +29,7 @@ export default function App() {
     title: '',
   });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [videoRefreshKey, setVideoRefreshKey] = useState(0);
+  const [mediaRefreshKey, setMediaRefreshKey] = useState(0);
   const [playerState, setPlayerState] = useState(html5Player.getState());
 
   // Subscribe to player state
@@ -64,10 +68,18 @@ export default function App() {
     setActiveTab('shorts');
   };
 
+  const handleOpenWatch = (video: ShortVideo) => {
+    setSelectedVideo(video);
+    setActiveTab('watch');
+  };
+
+  const handleOpenProfile = (username: string) => {
+    setViewedUsername(username);
+    setActiveTab('profile');
+  };
+
   const handleUploadSuccess = (item: { title: string; type: 'track' | 'video' }) => {
-    if (item.type === 'video') {
-      setVideoRefreshKey((key) => key + 1);
-    }
+    setMediaRefreshKey((key) => key + 1);
     showToast(`Successfully published "${item.title}" to Kinetic Catalog!`);
   };
 
@@ -86,6 +98,7 @@ export default function App() {
 
   const handleNavigate = (tab: ActiveTab) => {
     setActiveTab(tab);
+    if (tab !== 'profile') setViewedUsername(undefined);
     if (tab === 'shorts') {
       // Pause background music player when entering short-video feed
       if (html5Player.getState().isPlaying) {
@@ -116,10 +129,11 @@ export default function App() {
       {isShorts && (
         <ShortsView
           currentShort={selectedShort}
-          refreshKey={videoRefreshKey}
+          refreshKey={mediaRefreshKey}
           onSelectTrack={handlePlayTrack}
           onNavigate={handleNavigate}
           onOpenShareModal={handleOpenShare}
+          onOpenProfile={handleOpenProfile}
         />
       )}
 
@@ -143,20 +157,30 @@ export default function App() {
               handleNavigate('home');
             }}
             isPlaying={playerState.isPlaying}
+            onOpenProfile={(username) => {
+              if (username) handleOpenProfile(username);
+              else if (currentUser) handleOpenProfile(currentUser.username);
+              else handleNavigate('auth');
+            }}
+            onOpenWatch={handleOpenWatch}
           />
 
           {/* Main Viewport Container */}
           <main className="flex-1 px-4 lg:px-8 max-w-7xl w-full mx-auto">
             {activeTab === 'home' && (
               <HomeView
+                key={mediaRefreshKey}
                 onPlayTrack={handlePlayTrack}
                 onSelectShort={handleSelectShort}
+                onOpenWatch={handleSelectShort}
+                onOpenProfile={handleOpenProfile}
                 onNavigate={handleNavigate}
               />
             )}
 
             {activeTab === 'music' && (
               <MusicView
+                key={mediaRefreshKey}
                 onPlayTrack={handlePlayTrack}
                 onNavigate={handleNavigate}
                 onOpenShareModal={handleOpenShare}
@@ -174,13 +198,17 @@ export default function App() {
 
             {activeTab === 'discover' && (
               <DiscoverView
+                key={mediaRefreshKey}
                 onPlayTrack={handlePlayTrack}
                 onNavigate={handleNavigate}
+                onOpenWatch={handleOpenWatch}
+                onOpenProfile={handleOpenProfile}
               />
             )}
 
             {activeTab === 'library' && (
               <LibraryView
+                key={mediaRefreshKey}
                 onPlayTrack={handlePlayTrack}
                 onNavigate={handleNavigate}
               />
@@ -202,6 +230,32 @@ export default function App() {
                 }}
               />
             )}
+
+            {activeTab === 'profile' && (
+              <ProfileView
+                username={viewedUsername}
+                currentUser={currentUser}
+                onUserUpdated={setCurrentUser}
+                onOpenUpload={handleOpenUploadModal}
+                onOpenWatch={handleOpenWatch}
+                onOpenProfile={handleOpenProfile}
+                onLogout={async () => {
+                  await authApi.logout();
+                  setCurrentUser(null);
+                  handleNavigate('home');
+                }}
+              />
+            )}
+
+            {activeTab === 'watch' && selectedVideo && (
+              <WatchView
+                video={selectedVideo}
+                onBack={() => handleNavigate('home')}
+                onOpenProfile={handleOpenProfile}
+                onOpenWatch={handleOpenWatch}
+                onNavigate={handleNavigate}
+              />
+            )}
           </main>
 
           {/* Mobile Bottom Navigation */}
@@ -211,6 +265,7 @@ export default function App() {
             onOpenUploadModal={handleOpenUploadModal}
             currentUser={currentUser}
             onOpenAuth={() => handleNavigate('auth')}
+            onOpenProfile={() => currentUser ? handleOpenProfile(currentUser.username) : handleNavigate('auth')}
           />
 
           {/* Persistent Docked Audio Player */}

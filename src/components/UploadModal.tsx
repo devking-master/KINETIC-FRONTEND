@@ -13,6 +13,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { uploadApi } from '../services/uploadApi';
+import { clearTrackCache } from '../services/musicApi';
 
 const createTrackArtworkUrl = (trackTitle: string, trackArtist: string) =>
   `https://api.dicebear.com/9.x/shapes/svg?seed=${encodeURIComponent(`${trackTitle}-${trackArtist}`)}&backgroundColor=111827,312e81,164e63`;
@@ -150,6 +151,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
           cloudinaryPublicId: cloudRes.public_id,
         });
 
+        clearTrackCache();
         setUploadProgress(100);
         setIsUploading(false);
         setStep(4);

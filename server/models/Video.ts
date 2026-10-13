@@ -19,6 +19,9 @@ export interface IVideo extends Document {
   commentsCount: number;
   sharesCount: number;
   source: 'user' | 'api' | 'fallback';
+  isReported: boolean;
+  reportCount: number;
+  reportReasons: string[];
   createdAt: Date;
 }
 
@@ -50,7 +53,18 @@ const VideoSchema: Schema = new Schema({
   commentsCount: { type: Number, default: 0 },
   sharesCount: { type: Number, default: 0 },
   source: { type: String, enum: ['user', 'api', 'fallback'], default: 'user' },
+  isReported: { type: Boolean, default: false },
+  reportCount: { type: Number, default: 0 },
+  reportReasons: [{ type: String }],
   createdAt: { type: Date, default: Date.now }
 });
+
+VideoSchema.index({ createdAt: -1 });
+VideoSchema.index({ creator: 1, createdAt: -1 });
+VideoSchema.index({ caption: 1 });
+VideoSchema.index({ creatorName: 1 });
+VideoSchema.index({ audioTrackTitle: 1 });
+VideoSchema.index({ hashtags: 1 });
+VideoSchema.index({ caption: 'text', creatorName: 'text', audioTrackTitle: 'text' });
 
 export const Video = mongoose.model<IVideo>('Video', VideoSchema);

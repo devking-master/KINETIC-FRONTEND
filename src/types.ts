@@ -57,6 +57,7 @@ export interface AuthUser {
   username: string;
   email: string;
   avatarUrl: string;
+  coverUrl?: string;
   bio?: string;
   role: 'listener' | 'creator';
   followersCount: number;
@@ -94,4 +95,4 @@ export interface Playlist {
   ownerName: string;
 }
 
-export type ActiveTab = 'home' | 'discover' | 'music' | 'shorts' | 'library' | 'creator-studio' | 'auth';
+export type ActiveTab = 'home' | 'discover' | 'music' | 'shorts' | 'library' | 'creator-studio' | 'auth' | 'profile' | 'watch';
