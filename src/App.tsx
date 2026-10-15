@@ -111,12 +111,12 @@ export default function App() {
   const isShorts = activeTab === 'shorts';
 
   return (
-    <div className="min-h-screen bg-[#080A0F] text-[#E2E8F0] flex flex-col font-sans selection:bg-[#6366F1]/30 selection:text-[#A5B4FC]">
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] flex flex-col font-sans selection:bg-[var(--accent)]/30 selection:text-[var(--accent-hover)]">
       
       {/* Global Toast Banner */}
       {toastMessage && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[100] bg-[#131722] border border-[#6366F1] text-white text-xs font-semibold px-4 py-2.5 rounded-full shadow-2xl animate-in fade-in slide-in-from-top-4 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[100] bg-[var(--raised)] border border-[var(--accent)] text-[var(--text)] text-xs font-semibold px-4 py-2.5 rounded-full shadow-2xl animate-in fade-in slide-in-from-top-4 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-[var(--success)] animate-pulse" />
           <span>{toastMessage}</span>
         </div>
       )}

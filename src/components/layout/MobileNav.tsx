@@ -20,33 +20,33 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   onOpenProfile,
 }) => {
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#080A0F]/90 backdrop-blur-xl border-t border-[#1F273A] px-2 py-2 flex items-center justify-around">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--bg)]/90 backdrop-blur-xl border-t border-[var(--border)] px-2 py-2 flex items-center justify-around">
       {/* Home */}
       <button
         onClick={() => onNavigate('home')}
         className={`flex flex-col items-center gap-1 px-3 py-1 transition-all ${
-          activeTab === 'home' ? 'text-[#6366F1]' : 'text-[#64748B] hover:text-white'
+          activeTab === 'home' ? 'text-[var(--accent)]' : 'text-[var(--subtle)] hover:text-[var(--text)]'
         }`}
       >
         <Home className="w-5 h-5" />
-        <span className="text-[10px] font-bold tracking-tight">Home</span>
+        <span className="text-[10px] font-bold ">Home</span>
       </button>
 
       {/* Discover / Shorts */}
       <button
         onClick={() => onNavigate('shorts')}
         className={`flex flex-col items-center gap-1 px-3 py-1 transition-all ${
-          activeTab === 'shorts' ? 'text-[#6366F1]' : 'text-[#64748B] hover:text-white'
+          activeTab === 'shorts' ? 'text-[var(--accent)]' : 'text-[var(--subtle)] hover:text-[var(--text)]'
         }`}
       >
         <Video className="w-5 h-5" />
-        <span className="text-[10px] font-bold tracking-tight">Shorts</span>
+        <span className="text-[10px] font-bold ">Shorts</span>
       </button>
 
       {/* Center Create Button */}
       <button
         onClick={onOpenUploadModal}
-        className="w-12 h-12 -mt-4 rounded-full bg-gradient-to-tr from-[#6366F1] via-[#8B5CF6] to-[#06B6D4] flex items-center justify-center text-white shadow-xl shadow-[#6366F1]/40 border-2 border-[#080A0F] active:scale-95 transition-transform"
+        className="w-12 h-12 -mt-4 rounded-full bg-gradient-to-tr from-[var(--accent)] via-[var(--accent)] to-[var(--accent)] flex items-center justify-center text-[var(--text)] shadow-xl shadow-[var(--accent)]/40 border-2 border-[var(--bg)] active:scale-95 transition-transform"
       >
         <Plus className="w-6 h-6 stroke-[2.5]" />
       </button>
@@ -55,11 +55,11 @@ export const MobileNav: React.FC<MobileNavProps> = ({
       <button
         onClick={() => onNavigate('music')}
         className={`flex flex-col items-center gap-1 px-3 py-1 transition-all ${
-          activeTab === 'music' ? 'text-[#6366F1]' : 'text-[#64748B] hover:text-white'
+          activeTab === 'music' ? 'text-[var(--accent)]' : 'text-[var(--subtle)] hover:text-[var(--text)]'
         }`}
       >
         <Music2 className="w-5 h-5" />
-        <span className="text-[10px] font-bold tracking-tight">Music</span>
+        <span className="text-[10px] font-bold ">Music</span>
       </button>
 
       {/* Library / Profile */}
@@ -72,11 +72,11 @@ export const MobileNav: React.FC<MobileNavProps> = ({
           }
         }}
         className={`flex flex-col items-center gap-1 px-3 py-1 transition-all ${
-          activeTab === 'library' || activeTab === 'profile' || activeTab === 'auth' ? 'text-[#6366F1]' : 'text-[#64748B] hover:text-white'
+          activeTab === 'library' || activeTab === 'profile' || activeTab === 'auth' ? 'text-[var(--accent)]' : 'text-[var(--subtle)] hover:text-[var(--text)]'
         }`}
       >
         <User className="w-5 h-5" />
-        <span className="text-[10px] font-bold tracking-tight">
+        <span className="text-[10px] font-bold ">
           {currentUser ? 'Profile' : 'Sign In'}
         </span>
       </button>

@@ -15,22 +15,22 @@ const BADGE_CONFIG: Record<BadgeVariant, { icon: React.ElementType; label: strin
   verified: {
     icon: CheckCircle2,
     label: 'Verified',
-    className: 'bg-[#3B82F6]/20 text-[#60A5FA] border-[#3B82F6]/30',
+    className: 'bg-[var(--accent-hover)]/20 text-[var(--accent-hover)] border-[var(--accent-hover)]/30',
   },
   pro: {
     icon: Crown,
     label: 'Pro',
-    className: 'bg-gradient-to-r from-[#F59E0B]/20 to-[#F43F5E]/20 text-[#F59E0B] border-[#F59E0B]/30',
+    className: 'bg-gradient-to-r from-[var(--warning)]/20 to-[var(--like)]/20 text-[var(--warning)] border-[var(--warning)]/30',
   },
   rising: {
     icon: Zap,
     label: 'Rising',
-    className: 'bg-[#10B981]/20 text-[#34D399] border-[#10B981]/30',
+    className: 'bg-[var(--success)]/20 text-[var(--success)] border-[var(--success)]/30',
   },
   'top-creator': {
     icon: Star,
     label: 'Top Creator',
-    className: 'bg-gradient-to-r from-[#6366F1]/20 to-[#8B5CF6]/20 text-[#A78BFA] border-[#6366F1]/30',
+    className: 'bg-gradient-to-r from-[var(--accent)]/20 to-[var(--accent)]/20 text-[var(--accent-hover)] border-[var(--accent)]/30',
   },
 };
 

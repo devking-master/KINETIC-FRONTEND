@@ -56,31 +56,31 @@ export const AuthView: React.FC<AuthViewProps> = ({
   if (currentUser) {
     return (
       <div className="max-w-xl mx-auto py-10 space-y-6 animate-in fade-in">
-        <div className="bg-[#131722] border border-[#1F273A] rounded-3xl p-8 text-center space-y-4 shadow-2xl">
-          <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-24 h-24 rounded-full mx-auto border-4 border-[#6366F1] shadow-xl object-cover" />
+        <div className="bg-[var(--raised)] border border-[var(--border)] rounded-2xl p-8 text-center space-y-4 shadow-2xl">
+          <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-24 h-24 rounded-full mx-auto border-4 border-[var(--accent)] shadow-xl object-cover" />
           
           <div>
-            <h2 className="text-2xl font-black text-white font-display">{currentUser.name}</h2>
-            <p className="text-xs text-[#6366F1] font-bold">@{currentUser.username}</p>
+            <h2 className="text-2xl font-black text-[var(--text)] font-display">{currentUser.name}</h2>
+            <p className="text-xs text-[var(--accent)] font-bold">@{currentUser.username}</p>
           </div>
 
-          <p className="text-xs text-[#94A3B8] max-w-sm mx-auto">{currentUser.bio}</p>
+          <p className="text-xs text-[var(--muted)] max-w-sm mx-auto">{currentUser.bio}</p>
 
-          <div className="grid grid-cols-2 gap-4 py-4 border-y border-[#1F273A] max-w-xs mx-auto">
+          <div className="grid grid-cols-2 gap-4 py-4 border-y border-[var(--border)] max-w-xs mx-auto">
             <div>
-              <div className="text-lg font-bold text-white">{currentUser.followersCount}</div>
-              <div className="text-[10px] uppercase font-bold text-[#64748B]">Followers</div>
+              <div className="text-lg font-bold text-[var(--text)]">{currentUser.followersCount}</div>
+              <div className="text-[10px]  font-bold text-[var(--subtle)]">Followers</div>
             </div>
             <div>
-              <div className="text-lg font-bold text-white">{currentUser.followingCount}</div>
-              <div className="text-[10px] uppercase font-bold text-[#64748B]">Following</div>
+              <div className="text-lg font-bold text-[var(--text)]">{currentUser.followingCount}</div>
+              <div className="text-[10px]  font-bold text-[var(--subtle)]">Following</div>
             </div>
           </div>
 
           <button
             onClick={handleLogout}
             disabled={isLoggingOut}
-            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#F43F5E]/15 hover:bg-[#F43F5E]/25 text-[#F87171] font-bold text-xs border border-[#F43F5E]/30 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[var(--like)]/15 hover:bg-[var(--like)]/25 text-[var(--danger)] font-bold text-xs border border-[var(--like)]/30 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
           >
             {isLoggingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
             <span>{isLoggingOut ? 'Signing out...' : 'Sign Out'}</span>

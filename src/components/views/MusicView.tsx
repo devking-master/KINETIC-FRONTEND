@@ -4,6 +4,7 @@ import { Track, ActiveTab } from '../../types';
 import { clearTrackCache, musicApi } from '../../services/musicApi';
 import { MediaLoadingState } from '../MediaLoadingState';
 import { StateFeedback } from '../ui/StateFeedback';
+import { Card } from '../ui/Card';
 
 interface MusicViewProps {
   onPlayTrack: (track: Track) => void;
@@ -67,10 +68,10 @@ export const MusicView: React.FC<MusicViewProps> = ({
     <div className="space-y-8 pb-28 pt-2 animate-in fade-in duration-300">
       
       {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-[#1F273A] pb-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-[var(--border)] pb-6">
         <div>
-          <h1 className="text-3xl font-black text-white font-display tracking-tight">Music Catalog</h1>
-          <p className="text-xs text-[#94A3B8] mt-1">Explore lossless master tracks, user uploads, and API discoveries</p>
+          <h1 className="text-3xl font-black text-[var(--text)] font-display ">Music Catalog</h1>
+          <p className="text-xs text-[var(--muted)] mt-1">Explore lossless master tracks, user uploads, and API discoveries</p>
         </div>
 
         {/* Genre Filters */}
@@ -81,8 +82,8 @@ export const MusicView: React.FC<MusicViewProps> = ({
               onClick={() => setActiveGenre(g)}
               className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
                 activeGenre === g
-                  ? 'bg-[#6366F1] text-white shadow-md shadow-[#6366F1]/30'
-                  : 'bg-[#131722] text-[#94A3B8] border border-[#1F273A] hover:text-white'
+                  ? 'bg-[var(--accent)] text-[var(--text)] shadow-md shadow-[var(--accent)]/30'
+                  : 'bg-[var(--raised)] text-[var(--muted)] border border-[var(--border)] hover:text-[var(--text)]'
               }`}
             >
               {g}
@@ -94,7 +95,7 @@ export const MusicView: React.FC<MusicViewProps> = ({
       {isLoading && (
         <div>
           <MediaLoadingState />
-          {isWakingServer && <p className="-mt-10 pb-8 text-center text-xs text-[#94A3B8]">Waking up the server, this can take a few seconds</p>}
+          {isWakingServer && <p className="-mt-10 pb-8 text-center text-xs text-[var(--muted)]">Waking up the server, this can take a few seconds</p>}
         </div>
       )}
       {hasLoadError && !isLoading && (
@@ -107,32 +108,32 @@ export const MusicView: React.FC<MusicViewProps> = ({
 
       {/* Featured Track Card */}
       {tracks[0] && (
-        <div className="relative rounded-3xl bg-gradient-to-r from-[#131722] via-[#1B2130] to-[#0D1017] border border-[#1F273A] p-6 flex flex-col md:flex-row items-center gap-6 shadow-xl">
-          <img src={tracks[0].coverUrl} alt={tracks[0].title} className="w-40 h-40 rounded-2xl object-cover shadow-2xl border border-[#1F273A]" />
+        <Card className="relative rounded-2xl bg-gradient-to-r from-[var(--raised)] via-[var(--raised)] to-[var(--surface)] border border-[var(--border)] p-6 flex flex-col md:flex-row items-center gap-6 shadow-xl">
+          <img src={tracks[0].coverUrl} alt={tracks[0].title} className="w-40 h-40 rounded-2xl object-cover shadow-2xl border border-[var(--border)]" />
           
           <div className="flex-1 space-y-3 text-center md:text-left">
-            <span className="text-[10px] font-bold text-[#6366F1] uppercase tracking-wider bg-[#6366F1]/10 px-3 py-1 rounded-full border border-[#6366F1]/30">
+            <span className="text-[10px] font-bold text-[var(--accent)]   bg-[var(--accent)]/10 px-3 py-1 rounded-full border border-[var(--accent)]/30">
               FEATURED RELEASE
             </span>
-            <h2 className="text-2xl font-black text-white font-display">{tracks[0].title}</h2>
-            <p className="text-xs text-[#94A3B8] max-w-md">{tracks[0].artist} • {tracks[0].album}</p>
+            <h2 className="text-2xl font-black text-[var(--text)] font-display">{tracks[0].title}</h2>
+            <p className="text-xs text-[var(--muted)] max-w-md">{tracks[0].artist} • {tracks[0].album}</p>
 
             <button
               onClick={() => onPlayTrack(tracks[0])}
-              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#6366F1] hover:bg-[#8B5CF6] text-white font-bold text-xs shadow-lg shadow-[#6366F1]/30 transition-all hover:scale-105"
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[var(--accent)] hover:bg-[var(--accent)] text-[var(--text)] font-bold text-xs shadow-lg shadow-[var(--accent)]/30 transition-all hover:scale-105"
             >
               <Play className="w-4 h-4 fill-white" />
               <span>Play Featured Track</span>
             </button>
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Tracks Table */}
       <div className="space-y-3">
-        <h3 className="text-lg font-bold text-white font-display">Popular Tracks</h3>
+        <h3 className="text-lg font-bold text-[var(--text)] font-display">Popular Tracks</h3>
 
-        <div className="bg-[#131722] border border-[#1F273A] rounded-3xl overflow-hidden divide-y divide-[#1F273A]">
+        <div className="bg-[var(--raised)] border border-[var(--border)] rounded-2xl overflow-hidden divide-y divide-[var(--border)]">
           {filteredTracks.map((t, idx) => {
             const isCurrent = currentTrack.id === t.id;
             const isLiked = likedMap[t.id] ?? t.isLiked;
@@ -140,23 +141,23 @@ export const MusicView: React.FC<MusicViewProps> = ({
             return (
               <div
                 key={t.id}
-                className={`flex items-center justify-between p-3.5 hover:bg-[#1B2130] transition-colors group cursor-pointer ${
-                  isCurrent ? 'bg-[#6366F1]/10' : ''
+                className={`flex items-center justify-between p-3.5 hover:bg-[var(--raised)] transition-colors group cursor-pointer ${
+                  isCurrent ? 'bg-[var(--accent)]/10' : ''
                 }`}
                 onClick={() => onPlayTrack(t)}
               >
                 <div className="flex items-center gap-4 min-w-0 flex-1">
-                  <span className="text-xs font-black text-[#64748B] w-5 text-center">{idx + 1}</span>
+                  <span className="text-xs font-black text-[var(--subtle)] w-5 text-center">{idx + 1}</span>
                   <img src={t.coverUrl} alt={t.title} className="w-11 h-11 rounded-xl object-cover shadow" />
                   <div className="min-w-0 flex-1">
-                    <div className={`text-xs font-bold truncate ${isCurrent ? 'text-[#A5B4FC]' : 'text-white'}`}>
+                    <div className={`text-xs font-bold truncate ${isCurrent ? 'text-[var(--accent-hover)]' : 'text-[var(--text)]'}`}>
                       {t.title}
                     </div>
-                    <div className="text-[11px] text-[#94A3B8] truncate">{t.artist}</div>
+                    <div className="text-[11px] text-[var(--muted)] truncate">{t.artist}</div>
                   </div>
                 </div>
 
-                <div className="hidden md:block flex-1 text-xs text-[#94A3B8] truncate">
+                <div className="hidden md:block flex-1 text-xs text-[var(--muted)] truncate">
                   {t.album}
                 </div>
 
@@ -164,19 +165,19 @@ export const MusicView: React.FC<MusicViewProps> = ({
                   <button
                     onClick={(e) => { e.stopPropagation(); toggleLike(t.id); }}
                     className={`p-1.5 rounded-full transition-colors ${
-                      isLiked ? 'text-[#F43F5E]' : 'text-[#64748B] hover:text-white'
+                      isLiked ? 'text-[var(--like)]' : 'text-[var(--subtle)] hover:text-[var(--text)]'
                     }`}
                   >
-                    <Heart className={`w-4 h-4 ${isLiked ? 'fill-[#F43F5E]' : ''}`} />
+                    <Heart className={`w-4 h-4 ${isLiked ? 'fill-[var(--like)]' : ''}`} />
                   </button>
 
-                  <span className="text-xs font-medium text-[#64748B] tabular-nums">
+                  <span className="text-xs font-medium text-[var(--subtle)] tabular-nums">
                     {t.durationFormatted || '3:30'}
                   </span>
 
                   <button 
                     onClick={(e) => { e.stopPropagation(); onOpenShareModal(t.title); }}
-                    className="p-1.5 text-[#64748B] hover:text-white rounded-full"
+                    className="p-1.5 text-[var(--subtle)] hover:text-[var(--text)] rounded-full"
                   >
                     <MoreHorizontal className="w-4 h-4" />
                   </button>

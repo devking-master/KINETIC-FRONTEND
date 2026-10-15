@@ -51,14 +51,14 @@ export const ReportModal: React.FC<ReportModalProps> = ({ targetType, targetId, 
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
       {/* Sheet */}
-      <div className="relative w-full sm:w-[420px] bg-[#0D1117] border border-[#1F273A] rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+      <div className="relative w-full sm:w-[420px] bg-[var(--surface)] border border-[var(--border)] rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[#1F273A]">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[var(--border)]">
           <div className="flex items-center gap-2">
-            <Flag className="w-4 h-4 text-[#F43F5E]" />
-            <h2 className="text-sm font-bold text-white">Report {targetType}</h2>
+            <Flag className="w-4 h-4 text-[var(--like)]" />
+            <h2 className="text-sm font-bold text-[var(--text)]">Report {targetType}</h2>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-[#1F273A] text-[#94A3B8] hover:text-white transition-colors">
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -66,18 +66,18 @@ export const ReportModal: React.FC<ReportModalProps> = ({ targetType, targetId, 
         <div className="p-5">
           {step === 'choose' && (
             <div className="space-y-2">
-              <p className="text-xs text-[#94A3B8] mb-3">
+              <p className="text-xs text-[var(--muted)] mb-3">
                 Why are you reporting{targetLabel ? ` "${targetLabel}"` : ' this content'}?
               </p>
               {REASONS.map((r) => (
                 <button
                   key={r.value}
                   onClick={() => { setSelectedReason(r.value); setStep('details'); }}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-[#131722] border border-[#1F273A] hover:border-[#6366F1]/50 hover:bg-[#1B2130] transition-all text-left"
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-[var(--raised)] border border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--raised)] transition-all text-left"
                 >
                   <span className="text-lg">{r.icon}</span>
-                  <span className="text-sm font-medium text-white flex-1">{r.label}</span>
-                  <ChevronRight className="w-4 h-4 text-[#475569]" />
+                  <span className="text-sm font-medium text-[var(--text)] flex-1">{r.label}</span>
+                  <ChevronRight className="w-4 h-4 text-[var(--subtle)]" />
                 </button>
               ))}
             </div>
@@ -85,39 +85,39 @@ export const ReportModal: React.FC<ReportModalProps> = ({ targetType, targetId, 
 
           {step === 'details' && (
             <div className="space-y-4">
-              <div className="flex items-center gap-2 p-3 rounded-2xl bg-[#131722] border border-[#1F273A]">
-                <AlertTriangle className="w-4 h-4 text-[#F59E0B] shrink-0" />
-                <span className="text-xs text-[#94A3B8]">
-                  Reason: <span className="font-bold text-white">{REASONS.find(r => r.value === selectedReason)?.label}</span>
+              <div className="flex items-center gap-2 p-3 rounded-2xl bg-[var(--raised)] border border-[var(--border)]">
+                <AlertTriangle className="w-4 h-4 text-[var(--warning)] shrink-0" />
+                <span className="text-xs text-[var(--muted)]">
+                  Reason: <span className="font-bold text-[var(--text)]">{REASONS.find(r => r.value === selectedReason)?.label}</span>
                 </span>
               </div>
               <div>
-                <label className="text-xs font-bold text-[#94A3B8] mb-1 block">Additional details (optional)</label>
+                <label className="text-xs font-bold text-[var(--muted)] mb-1 block">Additional details (optional)</label>
                 <textarea
                   value={details}
                   onChange={(e) => setDetails(e.target.value.slice(0, 500))}
                   placeholder="Help us understand what happened..."
-                  className="w-full bg-[#131722] border border-[#1F273A] rounded-2xl px-4 py-3 text-sm text-white placeholder-[#475569] resize-none outline-none focus:border-[#6366F1]/60 transition-colors"
+                  className="w-full bg-[var(--raised)] border border-[var(--border)] rounded-2xl px-4 py-3 text-sm text-[var(--text)] placeholder-[var(--subtle)] resize-none outline-none focus:border-[var(--accent)]/60 transition-colors"
                   rows={3}
                 />
-                <p className="text-right text-[10px] text-[#475569] mt-1">{details.length}/500</p>
+                <p className="text-right text-[10px] text-[var(--subtle)] mt-1">{details.length}/500</p>
               </div>
               {error && (
-                <p className="text-xs text-[#F87171] bg-[#F43F5E]/10 border border-[#F43F5E]/30 rounded-xl px-3 py-2">
+                <p className="text-xs text-[var(--danger)] bg-[var(--like)]/10 border border-[var(--like)]/30 rounded-xl px-3 py-2">
                   {error}
                 </p>
               )}
               <div className="flex gap-2">
                 <button
                   onClick={() => setStep('choose')}
-                  className="flex-1 py-2.5 rounded-2xl border border-[#1F273A] text-[#94A3B8] text-sm font-medium hover:bg-[#1F273A] transition-colors"
+                  className="flex-1 py-2.5 rounded-2xl border border-[var(--border)] text-[var(--muted)] text-sm font-medium hover:bg-[var(--border)] transition-colors"
                 >
                   Back
                 </button>
                 <button
                   onClick={handleSubmit}
                   disabled={isSubmitting}
-                  className="flex-1 py-2.5 rounded-2xl bg-[#F43F5E] text-white text-sm font-bold hover:bg-[#E11D48] transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 rounded-2xl bg-[var(--like)] text-[var(--text)] text-sm font-bold hover:bg-[var(--danger)] transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
                 >
                   {isSubmitting ? <SpinnerInline size="sm" /> : null}
                   {isSubmitting ? 'Submitting…' : 'Submit Report'}
@@ -128,14 +128,14 @@ export const ReportModal: React.FC<ReportModalProps> = ({ targetType, targetId, 
 
           {step === 'done' && (
             <div className="flex flex-col items-center justify-center py-8 gap-4 text-center">
-              <div className="w-16 h-16 rounded-full bg-[#10B981]/20 border border-[#10B981]/30 flex items-center justify-center">
-                <Flag className="w-7 h-7 text-[#34D399]" />
+              <div className="w-16 h-16 rounded-full bg-[var(--success)]/20 border border-[var(--success)]/30 flex items-center justify-center">
+                <Flag className="w-7 h-7 text-[var(--success)]" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white">Report Submitted</h3>
-                <p className="text-xs text-[#94A3B8] mt-1">Our team will review this content. Thank you for keeping Kinetic safe.</p>
+                <h3 className="text-base font-bold text-[var(--text)]">Report Submitted</h3>
+                <p className="text-xs text-[var(--muted)] mt-1">Our team will review this content. Thank you for keeping Kinetic safe.</p>
               </div>
-              <button onClick={onClose} className="px-6 py-2.5 rounded-full bg-[#131722] border border-[#1F273A] text-sm font-bold text-white hover:bg-[#1B2130] transition-colors">
+              <button onClick={onClose} className="px-6 py-2.5 rounded-full bg-[var(--raised)] border border-[var(--border)] text-sm font-bold text-[var(--text)] hover:bg-[var(--raised)] transition-colors">
                 Close
               </button>
             </div>

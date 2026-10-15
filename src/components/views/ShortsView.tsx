@@ -545,16 +545,16 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
     <div className="flex flex-col items-center gap-1 lg:gap-3" onClick={(event) => event.stopPropagation()}>
       <div className="relative mb-1">
         {activeVideo.creatorAvatar && <button onClick={() => onOpenProfile(activeHandle)} aria-label="Open creator profile"><img src={activeVideo.creatorAvatar} alt={activeVideo.creatorName} className="h-12 w-12 rounded-full border-2 border-white object-cover" /></button>}
-        <button onClick={() => void handleFollow()} title={isFollowing ? 'Following creator' : 'Follow creator'} className="absolute -bottom-2 left-1/2 grid h-5 w-5 -translate-x-1/2 place-items-center rounded-full bg-[#6366F1] text-white">{isFollowing ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}</button>
+        <button onClick={() => void handleFollow()} title={isFollowing ? 'Following creator' : 'Follow creator'} className="absolute -bottom-2 left-1/2 grid h-5 w-5 -translate-x-1/2 place-items-center rounded-full bg-[var(--accent)] text-[var(--text)]">{isFollowing ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}</button>
       </div>
       {[
-        { label: formatCount(activeLikeCount), Icon: Heart, active: isLiked, action: () => void handleLike(), activeClass: 'text-[#F43F5E]' },
-        { label: formatCount(activeCommentCount), Icon: MessageCircle, active: isCommentsOpen, action: () => setIsCommentsOpen(true), activeClass: 'text-[#6366F1]' },
-        { label: isBookmarked ? 'Saved' : 'Save', Icon: Bookmark, active: isBookmarked, action: () => void handleSave(), activeClass: 'text-[#6366F1]' },
+        { label: formatCount(activeLikeCount), Icon: Heart, active: isLiked, action: () => void handleLike(), activeClass: 'text-[var(--like)]' },
+        { label: formatCount(activeCommentCount), Icon: MessageCircle, active: isCommentsOpen, action: () => setIsCommentsOpen(true), activeClass: 'text-[var(--accent)]' },
+        { label: isBookmarked ? 'Saved' : 'Save', Icon: Bookmark, active: isBookmarked, action: () => void handleSave(), activeClass: 'text-[var(--accent)]' },
         { label: 'Share', Icon: Share2, active: false, action: () => onOpenShareModal(activeVideo.caption, activeVideo.id), activeClass: '' },
-      ].map(({ label, Icon, active, action, activeClass }) => <button key={label} onClick={action} aria-label={label} className="flex flex-col items-center gap-0.5 text-white lg:gap-1">
+      ].map(({ label, Icon, active, action, activeClass }) => <button key={label} onClick={action} aria-label={label} className="flex flex-col items-center gap-0.5 text-[var(--text)] lg:gap-1">
         <span className={`grid h-12 w-12 place-items-center rounded-full bg-white/10 transition-colors hover:bg-white/20 ${active ? activeClass : ''}`}><Icon className={`h-6 w-6 ${active && Icon === Heart ? 'fill-current' : ''}`} /></span>
-        <span className="text-[11px] font-semibold leading-none text-white lg:text-xs">{label}</span>
+        <span className="text-[11px] font-semibold leading-none text-[var(--text)] lg:text-xs">{label}</span>
       </button>)}
     </div>
   );
@@ -585,38 +585,38 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
           />}
           <div onClick={isCurrent ? handleVideoClick : undefined} className="absolute inset-0 z-10" />
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[35%] bg-gradient-to-t from-black/60 to-transparent" />
-          {isCurrent && isBuffering && !videoError && <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center"><Loader2 className="h-8 w-8 animate-spin text-white" /></div>}
-          {isCurrent && videoError && <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-black/65 text-center"><p className="text-sm font-semibold">Video unavailable</p><button onClick={() => scrollToVideo(currentIndex + 1)} className="rounded-full bg-[#6366F1] px-4 py-2 text-xs font-bold">Next</button></div>}
-          {isCurrent && showHeartSplash && <Heart className="animate-heart-splash pointer-events-none absolute z-40 h-20 w-20 fill-[#F43F5E] text-[#F43F5E] drop-shadow-2xl" style={{ left: heartPos.x - 40, top: heartPos.y - 40 }} />}
+          {isCurrent && isBuffering && !videoError && <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center"><Loader2 className="h-8 w-8 animate-spin text-[var(--text)]" /></div>}
+          {isCurrent && videoError && <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-black/65 text-center"><p className="text-sm font-semibold">Video unavailable</p><button onClick={() => scrollToVideo(currentIndex + 1)} className="rounded-full bg-[var(--accent)] px-4 py-2 text-xs font-bold">Next</button></div>}
+          {isCurrent && showHeartSplash && <Heart className="animate-heart-splash pointer-events-none absolute z-40 h-20 w-20 fill-[var(--like)] text-[var(--like)] drop-shadow-2xl" style={{ left: heartPos.x - 40, top: heartPos.y - 40 }} />}
           {isCurrent && !isPlaying && !isBuffering && !videoError && <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center"><span className="grid h-16 w-16 animate-in fade-in duration-200 place-items-center rounded-full bg-black/50"><Play className="ml-1 h-8 w-8 fill-white" /></span></div>}
 
           {isCurrent && <>
-            <button onClick={toggleMute} className="group absolute left-3 top-3 z-30 flex items-center gap-2 rounded-full bg-black/45 p-2 text-white" aria-label={isMuted ? 'Unmute' : 'Mute'}>
+            <button onClick={toggleMute} className="group absolute left-3 top-3 z-30 flex items-center gap-2 rounded-full bg-black/45 p-2 text-[var(--text)]" aria-label={isMuted ? 'Unmute' : 'Mute'}>
               {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
-              <input type="range" min="0" max="1" step="0.05" defaultValue="1" onClick={(event) => event.stopPropagation()} onChange={(event) => { const element = videoRefs.current.get(activeVideo.id); if (element) element.volume = Number(event.target.value); if (isMuted) toggleMute(); }} className="hidden w-20 accent-[#6366F1] group-hover:block" aria-label="Volume" />
+              <input type="range" min="0" max="1" step="0.05" defaultValue="1" onClick={(event) => event.stopPropagation()} onChange={(event) => { const element = videoRefs.current.get(activeVideo.id); if (element) element.volume = Number(event.target.value); if (isMuted) toggleMute(); }} className="hidden w-20 accent-[var(--accent)] group-hover:block" aria-label="Volume" />
             </button>
             <div className="absolute right-3 top-3 z-30">
-              <button onClick={() => setShowMenu((open) => !open)} aria-label="More video actions" className="grid h-10 w-10 place-items-center rounded-full bg-black/45 text-white"><MoreHorizontal /></button>
-              {showMenu && <div className="absolute right-0 top-12 w-36 rounded-lg border border-white/10 bg-[#111] p-1 shadow-xl"><button onClick={() => { setReportTarget({ id: video.id, caption: video.caption }); setShowMenu(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs hover:bg-white/10"><Flag className="h-4 w-4" />Report</button></div>}
+              <button onClick={() => setShowMenu((open) => !open)} aria-label="More video actions" className="grid h-10 w-10 place-items-center rounded-full bg-black/45 text-[var(--text)]"><MoreHorizontal /></button>
+              {showMenu && <div className="absolute right-0 top-12 w-36 rounded-lg border border-white/10 bg-[var(--raised)] p-1 shadow-xl"><button onClick={() => { setReportTarget({ id: video.id, caption: video.caption }); setShowMenu(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs hover:bg-white/10"><Flag className="h-4 w-4" />Report</button></div>}
             </div>
-            <div className="absolute bottom-[76px] left-4 right-20 z-20 space-y-2 text-white lg:bottom-6 lg:right-4" onClick={(event) => event.stopPropagation()}>
+            <div className="absolute bottom-[76px] left-4 right-20 z-20 space-y-2 text-[var(--text)] lg:bottom-6 lg:right-4" onClick={(event) => event.stopPropagation()}>
               <div className="flex items-center gap-2">
                 <button onClick={() => onOpenProfile(creatorHandle)} className="text-sm font-extrabold hover:underline">@{creatorHandle}</button>
-                {video.verified && <span className="grid h-4 w-4 place-items-center rounded-full bg-[#6366F1]"><Check className="h-3 w-3" /></span>}
-                <span className="hidden text-xs text-white/60 lg:inline">{video.creatorName}</span>
-                <button onClick={() => void handleFollow()} className="hidden rounded-full border border-white/40 px-3 py-1 text-[11px] font-bold hover:border-[#6366F1] hover:bg-[#6366F1] lg:inline">{isFollowing ? 'Following' : 'Follow'}</button>
+                {video.verified && <span className="grid h-4 w-4 place-items-center rounded-full bg-[var(--accent)]"><Check className="h-3 w-3" /></span>}
+                <span className="hidden text-xs text-[var(--text)]/60 lg:inline">{video.creatorName}</span>
+                <button onClick={() => void handleFollow()} className="hidden rounded-full border border-white/40 px-3 py-1 text-[11px] font-bold hover:border-[var(--accent)] hover:bg-[var(--accent)] lg:inline">{isFollowing ? 'Following' : 'Follow'}</button>
               </div>
               <p className={`max-w-full text-sm leading-snug ${captionExpanded ? '' : 'line-clamp-2'}`}>
                 {video.caption.split(/(#[\w]+)/g).map((part, partIndex) => hashtags.includes(part) ? <strong key={partIndex} className="font-extrabold">{part} </strong> : <React.Fragment key={partIndex}>{part}</React.Fragment>)}
                 {video.caption.length > 100 && <button onClick={() => setCaptionExpanded((expanded) => !expanded)} className="ml-1 font-bold">{captionExpanded ? 'less' : 'more'}</button>}
               </p>
               <button onClick={() => onSelectTrack({ id: `sound-${video.id}`, title: video.audioTrackTitle, artist: video.audioArtist, album: 'Original Sound', coverUrl: video.thumbnailUrl, duration: 180 })} className="flex max-w-full items-center gap-2 overflow-hidden rounded-full bg-black/40 px-3 py-1.5 text-left">
-                <Disc3 className="h-4 w-4 shrink-0 animate-spin text-white" />
+                <Disc3 className="h-4 w-4 shrink-0 animate-spin text-[var(--text)]" />
                 <span className="overflow-hidden whitespace-nowrap text-xs font-bold" style={{ animation: 'shorts-marquee 12s linear infinite' }}>{video.audioTrackTitle} · {video.audioArtist}</span>
                               <span className="inline-block overflow-hidden whitespace-nowrap text-xs font-bold" style={{ animation: 'shorts-marquee 12s linear infinite' }}>{video.audioTrackTitle} · {video.audioArtist}</span>
               </button>
             </div>
-            <div className="group absolute inset-x-0 bottom-0 z-30 h-1 cursor-pointer bg-white/20 transition-all hover:h-2" onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); seekToPointer(event); }} onPointerMove={(event) => { if (event.buttons === 1) seekToPointer(event); }}><div className="h-full bg-[#6366F1]" style={{ width: `${progress}%` }} /></div>
+            <div className="group absolute inset-x-0 bottom-0 z-30 h-1 cursor-pointer bg-white/20 transition-all hover:h-2" onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); seekToPointer(event); }} onPointerMove={(event) => { if (event.buttons === 1) seekToPointer(event); }}><div className="h-full bg-[var(--accent)]" style={{ width: `${progress}%` }} /></div>
           </>}
         </div>
       </div>
@@ -624,24 +624,24 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
   };
 
   const renderComments = (desktop: boolean) => <aside className={desktop
-    ? 'relative hidden h-full w-[380px] shrink-0 flex-col border-l border-white/10 bg-[#080808] p-5 lg:flex'
-    : 'absolute inset-x-0 bottom-0 z-50 flex max-h-[75dvh] flex-col rounded-t-2xl border-t border-white/10 bg-[#080808] p-5 lg:hidden'}>
+    ? 'relative hidden h-full w-[380px] shrink-0 flex-col border-l border-white/10 bg-[var(--bg)] p-5 lg:flex'
+    : 'absolute inset-x-0 bottom-0 z-50 flex max-h-[75dvh] flex-col rounded-t-2xl border-t border-white/10 bg-[var(--bg)] p-5 lg:hidden'}>
     <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-3"><h2 className="text-sm font-bold">Comments</h2><button onClick={() => setIsCommentsOpen(false)} aria-label="Close comments" className="grid h-9 w-9 place-items-center rounded-full hover:bg-white/10"><X className="h-5 w-5" /></button></div>
-    {interactionError && <p className="mb-3 text-xs text-rose-300">{interactionError}</p>}
+    {interactionError && <p className="mb-3 text-xs text-[var(--danger)]">{interactionError}</p>}
     <div className="flex-1 space-y-4 overflow-y-auto">
       {comments.map((comment) => <div key={comment.id} className="flex gap-3"><button onClick={() => onOpenProfile(comment.userHandle.replace(/^@/, ''))}><img src={comment.userAvatar} alt="" className="h-9 w-9 rounded-full object-cover" /></button><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><button onClick={() => onOpenProfile(comment.userHandle.replace(/^@/, ''))} className="text-xs font-bold text-white/80">{comment.userHandle}</button><span className="text-[10px] text-white/40">{comment.timeAgo}</span></div><p className="mt-1 text-xs leading-relaxed text-white/90">{comment.text}</p></div><span className="text-[10px] text-white/50">♥ {comment.likes}</span></div>)}
     </div>
-    <form onSubmit={handleAddComment} className="mt-4 flex gap-2 border-t border-white/10 pt-4"><input value={newCommentText} onChange={(event) => setNewCommentText(event.target.value)} placeholder="Add a comment..." className="min-w-0 flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-3 text-xs text-white placeholder:text-white/40 focus:border-[#6366F1] focus:outline-none" /><button type="submit" aria-label="Send comment" className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#6366F1]"><Send className="h-4 w-4" /></button></form>
+    <form onSubmit={handleAddComment} className="mt-4 flex gap-2 border-t border-white/10 pt-4"><input value={newCommentText} onChange={(event) => setNewCommentText(event.target.value)} placeholder="Add a comment..." className="min-w-0 flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-3 text-xs text-[var(--text)] placeholder:text-[var(--text)]/40 focus:border-[var(--accent)] focus:outline-none" /><button type="submit" aria-label="Send comment" className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--accent)]"><Send className="h-4 w-4" /></button></form>
   </aside>;
 
   const retryFeed = () => { void loadFirstPage(); };
 
-  return <div className="fixed inset-0 z-50 flex h-[100dvh] overflow-hidden bg-black text-white">
+  return <div className="fixed inset-0 z-50 flex h-[100dvh] overflow-hidden bg-black text-[var(--text)]">
     <style>{'@keyframes shorts-marquee { from { transform: translateX(0); } to { transform: translateX(-35%); } } @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; scroll-behavior: auto !important; transition-duration: 0.01ms !important; } }'}</style>
 
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[240px] flex-col border-r border-white/10 bg-black px-5 py-7 lg:flex max-[1279px]:w-[72px] max-[1279px]:items-center max-[1279px]:px-2">
       <button onClick={() => onNavigate('home')} className="mb-9 flex items-center max-[1279px]:justify-center" aria-label="Kinetic home"><KineticLogo size="sm" className="max-[1279px]:hidden" /><KineticLogo size="sm" showText={false} className="hidden max-[1279px]:flex" /></button>
-      <input value={searchText} onChange={(event) => setSearchText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') onNavigate('discover'); }} placeholder="Search" className="mb-5 h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm placeholder:text-white/45 focus:border-[#6366F1] focus:outline-none max-[1279px]:hidden" />
+      <input value={searchText} onChange={(event) => setSearchText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') onNavigate('discover'); }} placeholder="Search" className="mb-5 h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm placeholder:text-[var(--text)]/45 focus:border-[var(--accent)] focus:outline-none max-[1279px]:hidden" />
       <nav className="flex w-full flex-col gap-1">
         {[
           { label: 'For You', Icon: Play, action: () => changeCategory('For You'), active: activeCategory === 'For You' },
@@ -649,12 +649,12 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
           { label: 'Discover', Icon: Compass, action: () => onNavigate('discover') },
           { label: 'Music', Icon: Music, action: () => onNavigate('music') },
           { label: 'Library', Icon: Library, action: () => onNavigate('library') },
-        ].map(({ label, Icon, action, active }) => <button key={label} onClick={action} title={label} className={`flex h-12 items-center gap-4 rounded-lg px-3 text-sm font-semibold transition-colors hover:bg-white/10 max-[1279px]:w-12 max-[1279px]:justify-center max-[1279px]:px-0 ${active ? 'text-[#6366F1]' : 'text-white/80'}`}><Icon className="h-5 w-5 shrink-0" /><span className="max-[1279px]:hidden">{label}</span></button>)}
+        ].map(({ label, Icon, action, active }) => <button key={label} onClick={action} title={label} className={`flex h-12 items-center gap-4 rounded-lg px-3 text-sm font-semibold transition-colors hover:bg-white/10 max-[1279px]:w-12 max-[1279px]:justify-center max-[1279px]:px-0 ${active ? 'text-[var(--accent)]' : 'text-[var(--text)]/80'}`}><Icon className="h-5 w-5 shrink-0" /><span className="max-[1279px]:hidden">{label}</span></button>)}
       </nav>
-      <button onClick={onOpenUploadModal} className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#6366F1] text-sm font-bold transition-colors hover:bg-[#5558e8] max-[1279px]:w-12"><Upload className="h-4 w-4" /><span className="max-[1279px]:hidden">Upload</span></button>
+      <button onClick={onOpenUploadModal} className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--accent)] text-sm font-bold transition-colors hover:bg-[var(--accent)] max-[1279px]:w-12"><Upload className="h-4 w-4" /><span className="max-[1279px]:hidden">Upload</span></button>
       <div className="mt-auto flex w-full flex-col gap-1 border-t border-white/10 pt-4">
-        <button onClick={() => currentUser ? onOpenProfile(currentUser.username) : onNavigate('auth')} title="Profile" className="flex h-12 items-center gap-4 rounded-lg px-3 text-sm font-semibold text-white/80 hover:bg-white/10 max-[1279px]:justify-center max-[1279px]:px-0">{currentUser?.avatarUrl ? <img src={currentUser.avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" /> : <UserRound className="h-5 w-5" />}<span className="max-[1279px]:hidden">Profile</span></button>
-        {!currentUser && <button onClick={() => onNavigate('auth')} title="Sign in" className="flex h-12 items-center gap-4 rounded-lg px-3 text-sm font-semibold text-white/80 hover:bg-white/10 max-[1279px]:justify-center max-[1279px]:px-0"><LogIn className="h-5 w-5" /><span className="max-[1279px]:hidden">Sign in</span></button>}
+        <button onClick={() => currentUser ? onOpenProfile(currentUser.username) : onNavigate('auth')} title="Profile" className="flex h-12 items-center gap-4 rounded-lg px-3 text-sm font-semibold text-[var(--text)]/80 hover:bg-white/10 max-[1279px]:justify-center max-[1279px]:px-0">{currentUser?.avatarUrl ? <img src={currentUser.avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" /> : <UserRound className="h-5 w-5" />}<span className="max-[1279px]:hidden">Profile</span></button>
+        {!currentUser && <button onClick={() => onNavigate('auth')} title="Sign in" className="flex h-12 items-center gap-4 rounded-lg px-3 text-sm font-semibold text-[var(--text)]/80 hover:bg-white/10 max-[1279px]:justify-center max-[1279px]:px-0"><LogIn className="h-5 w-5" /><span className="max-[1279px]:hidden">Sign in</span></button>}
       </div>
     </aside>
 
@@ -662,30 +662,30 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
       <div className="relative flex min-w-0 flex-1 items-center justify-center">
         <div ref={feedRef} className="h-full w-full overflow-y-scroll snap-y snap-mandatory overscroll-contain no-scrollbar">
           {videos.map(renderSection)}
-          {isLoading && videos.length === 0 && <div className="grid h-full place-items-center"><Loader2 className="h-8 w-8 animate-spin text-[#6366F1]" /></div>}
-          {feedError && videos.length === 0 && <div className="absolute inset-0 z-20 grid place-items-center p-8 text-center"><div className="max-w-sm"><p className="text-sm font-semibold">{feedError}</p>{isGuestFollowingFeed ? <button onClick={() => onNavigate('auth')} className="mt-4 rounded-full bg-[#6366F1] px-5 py-2 text-xs font-bold">Sign in</button> : isFollowingFeedEmpty ? <button onClick={() => onNavigate('discover')} className="mt-4 rounded-full bg-[#6366F1] px-5 py-2 text-xs font-bold">Discover creators</button> : <button onClick={retryFeed} className="mt-4 rounded-full bg-[#6366F1] px-5 py-2 text-xs font-bold">Retry</button>}</div></div>}
-          {isFollowingFeedEmpty && <div className="absolute inset-0 z-20 grid place-items-center p-8 text-center"><div><p className="text-sm font-semibold">Follow creators to see their videos here</p><button onClick={() => onNavigate('discover')} className="mt-4 rounded-full bg-[#6366F1] px-5 py-2 text-xs font-bold">Discover creators</button></div></div>}
-          {isLoadingMore && <div className="absolute bottom-4 left-1/2 z-30 -translate-x-1/2"><Loader2 className="h-5 w-5 animate-spin text-white" /></div>}
+          {isLoading && videos.length === 0 && <div className="grid h-full place-items-center"><Loader2 className="h-8 w-8 animate-spin text-[var(--accent)]" /></div>}
+          {feedError && videos.length === 0 && <div className="absolute inset-0 z-20 grid place-items-center p-8 text-center"><div className="max-w-sm"><p className="text-sm font-semibold">{feedError}</p>{isGuestFollowingFeed ? <button onClick={() => onNavigate('auth')} className="mt-4 rounded-full bg-[var(--accent)] px-5 py-2 text-xs font-bold">Sign in</button> : isFollowingFeedEmpty ? <button onClick={() => onNavigate('discover')} className="mt-4 rounded-full bg-[var(--accent)] px-5 py-2 text-xs font-bold">Discover creators</button> : <button onClick={retryFeed} className="mt-4 rounded-full bg-[var(--accent)] px-5 py-2 text-xs font-bold">Retry</button>}</div></div>}
+          {isFollowingFeedEmpty && <div className="absolute inset-0 z-20 grid place-items-center p-8 text-center"><div><p className="text-sm font-semibold">Follow creators to see their videos here</p><button onClick={() => onNavigate('discover')} className="mt-4 rounded-full bg-[var(--accent)] px-5 py-2 text-xs font-bold">Discover creators</button></div></div>}
+          {isLoadingMore && <div className="absolute bottom-4 left-1/2 z-30 -translate-x-1/2"><Loader2 className="h-5 w-5 animate-spin text-[var(--text)]" /></div>}
         </div>
         <>
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center pt-5 lg:hidden"><div className="pointer-events-auto flex items-center gap-6 rounded-full bg-black/25 px-5 py-2 backdrop-blur-sm">{(['Following', 'For You'] as const).map((category) => <button key={category} onClick={() => changeCategory(category)} className={`border-b-2 pb-1 text-sm font-extrabold ${activeCategory === category ? 'border-[#6366F1] text-white' : 'border-transparent text-white/60'}`}>{category}</button>)}</div></div>
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center pt-5 lg:hidden"><div className="pointer-events-auto flex items-center gap-6 rounded-full bg-black/25 px-5 py-2 backdrop-blur-sm">{(['Following', 'For You'] as const).map((category) => <button key={category} onClick={() => changeCategory(category)} className={`border-b-2 pb-1 text-sm font-extrabold ${activeCategory === category ? 'border-[var(--accent)] text-[var(--text)]' : 'border-transparent text-[var(--text)]/60'}`}>{category}</button>)}</div></div>
           <div className="absolute right-3 top-5 z-30 lg:hidden"><button onClick={() => onNavigate('discover')} aria-label="Search" className="grid h-10 w-10 place-items-center rounded-full bg-black/30"><Search className="h-5 w-5" /></button></div>
           <div style={isCommentsOpen ? { left: `calc(50% - 60px + ${desktopCardWidth / 2 + 72}px)`, right: 'auto' } : undefined} className="absolute right-4 top-1/2 z-30 hidden -translate-y-1/2 flex-col gap-3 lg:flex"><button disabled={currentIndex === 0} onClick={() => scrollToVideo(currentIndex - 1)} aria-label="Previous video" className="grid h-12 w-12 place-items-center rounded-full bg-white/10 transition-colors hover:bg-white/20 disabled:opacity-30"><ChevronUp /></button><button disabled={currentIndex >= videos.length - 1 && !hasMore} onClick={() => scrollToVideo(currentIndex + 1)} aria-label="Next video" className="grid h-12 w-12 place-items-center rounded-full bg-white/10 transition-colors hover:bg-white/20 disabled:opacity-30"><ChevronDown /></button></div>
           {videos.length > 0 && <div className="absolute bottom-[84px] right-3 z-30 flex lg:hidden">{renderActionRail()}</div>}
           {videos.length > 0 && <div className="absolute bottom-3 z-30 hidden lg:flex" style={{ left: isCommentsOpen ? `calc(50% - 48px + ${desktopCardWidth / 2}px)` : 'calc(50% + 28.125dvh + 8px)' }}>{renderActionRail()}</div>}
           <nav className="absolute inset-x-0 bottom-0 z-40 flex h-16 items-center justify-around border-t border-white/10 bg-black/65 backdrop-blur-md lg:hidden">
-            <button onClick={() => onNavigate('home')} aria-label="Home" className="grid place-items-center text-white/75"><Home className="h-5 w-5" /><span className="mt-1 text-[10px]">Home</span></button>
-            <button onClick={() => onNavigate('discover')} aria-label="Discover" className="grid place-items-center text-white/75"><Compass className="h-5 w-5" /><span className="mt-1 text-[10px]">Discover</span></button>
-            <button onClick={onOpenUploadModal} aria-label="Upload" className="grid h-10 w-12 place-items-center rounded-lg bg-[#6366F1] text-white"><Plus className="h-7 w-7" /></button>
-            <button onClick={() => onNavigate('music')} aria-label="Music" className="grid place-items-center text-white/75"><Music className="h-5 w-5" /><span className="mt-1 text-[10px]">Music</span></button>
-            <button onClick={() => currentUser ? onOpenProfile(currentUser.username) : onNavigate('auth')} aria-label="Profile" className="grid place-items-center text-white/75"><UserRound className="h-5 w-5" /><span className="mt-1 text-[10px]">Profile</span></button>
+            <button onClick={() => onNavigate('home')} aria-label="Home" className="grid place-items-center text-[var(--text)]/75"><Home className="h-5 w-5" /><span className="mt-1 text-[10px]">Home</span></button>
+            <button onClick={() => onNavigate('discover')} aria-label="Discover" className="grid place-items-center text-[var(--text)]/75"><Compass className="h-5 w-5" /><span className="mt-1 text-[10px]">Discover</span></button>
+            <button onClick={onOpenUploadModal} aria-label="Upload" className="grid h-10 w-12 place-items-center rounded-lg bg-[var(--accent)] text-[var(--text)]"><Plus className="h-7 w-7" /></button>
+            <button onClick={() => onNavigate('music')} aria-label="Music" className="grid place-items-center text-[var(--text)]/75"><Music className="h-5 w-5" /><span className="mt-1 text-[10px]">Music</span></button>
+            <button onClick={() => currentUser ? onOpenProfile(currentUser.username) : onNavigate('auth')} aria-label="Profile" className="grid place-items-center text-[var(--text)]/75"><UserRound className="h-5 w-5" /><span className="mt-1 text-[10px]">Profile</span></button>
           </nav>
         </>
       </div>
       {isCommentsOpen && renderComments(true)}
       {isCommentsOpen && <><div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setIsCommentsOpen(false)} />{renderComments(false)}</>}
     </main>
-    {interactionError && !isCommentsOpen && <div className="absolute left-1/2 top-5 z-[80] -translate-x-1/2 rounded-full bg-black/80 px-4 py-2 text-center text-xs text-rose-200">{interactionError}</div>}
+    {interactionError && !isCommentsOpen && <div className="absolute left-1/2 top-5 z-[80] -translate-x-1/2 rounded-full bg-black/80 px-4 py-2 text-center text-xs text-[var(--danger)]">{interactionError}</div>}
     {reportTarget && <ReportModal targetType="video" targetId={reportTarget.id} targetLabel={reportTarget.caption} onClose={() => setReportTarget(null)} />}
   </div>;
 };

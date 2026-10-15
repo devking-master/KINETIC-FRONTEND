@@ -19,6 +19,7 @@ import {
 import { ActiveTab, AuthUser, Track, ShortVideo } from '../../types';
 import { musicApi } from '../../services/musicApi';
 import { KineticLogo } from '../KineticLogo';
+import { Field } from '../ui/Field';
 
 interface NavbarProps {
   activeTab: ActiveTab;
@@ -90,7 +91,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   ];
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-[#080A0F]/85 backdrop-blur-xl border-b border-[#1F273A] px-4 lg:px-8 py-3 transition-all">
+    <header className="sticky top-0 z-40 w-full bg-[var(--bg)]/85 backdrop-blur-xl border-b border-[var(--border)] px-4 lg:px-8 py-3 transition-all">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
         {/* Left: Brand Identity Logo */}
         <div className="flex items-center gap-6">
@@ -102,7 +103,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden lg:flex items-center gap-1 bg-[#131722] p-1 rounded-full border border-[#1F273A]">
+          <nav className="hidden lg:flex items-center gap-1 bg-[var(--raised)] p-1 rounded-full border border-[var(--border)]">
             {navItems.map((item) => {
               const isActive = activeTab === item.id;
               return (
@@ -111,8 +112,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => onNavigate(item.id)}
                   className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
                     isActive
-                      ? 'bg-[#6366F1] text-white shadow-md shadow-[#6366F1]/30'
-                      : 'text-[#94A3B8] hover:text-white hover:bg-[#1B2130]'
+                      ? 'bg-[var(--accent)] text-[var(--text)] shadow-md shadow-[var(--accent)]/30'
+                      : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--raised)]'
                   }`}
                 >
                   {item.icon}
@@ -126,18 +127,18 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Center: Global Search Input */}
         <div className="relative flex-1 max-w-md hidden lg:block">
           <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
-            <input
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--subtle)]" />
+            <Field
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search tracks, creators, short videos..."
-              className="w-full bg-[#131722] border border-[#1F273A] rounded-full pl-10 pr-9 py-2 text-xs font-medium text-white placeholder-[#64748B] focus:outline-none focus:border-[#6366F1] transition-all"
+              className="w-full rounded-xl pl-10 pr-9 py-2 text-xs font-medium"
             />
             {searchQuery && (
               <button 
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-white"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--subtle)] hover:text-[var(--text)]"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -146,14 +147,14 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Predictive Search Dropdown */}
           {showSearchDropdown && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-[#131722] border border-[#1F273A] rounded-2xl shadow-2xl overflow-hidden z-50 p-2 space-y-2 animate-in fade-in slide-in-from-top-2">
+            <div className="absolute top-full left-0 right-0 mt-2 bg-[var(--raised)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden z-50 p-2 space-y-2 animate-in fade-in slide-in-from-top-2">
               {isSearching ? (
-                <div className="p-4 text-center text-xs text-[#94A3B8]">Searching Kinetic index...</div>
+                <div className="p-4 text-center text-xs text-[var(--muted)]">Searching Kinetic index...</div>
               ) : searchResults.tracks.length === 0 && searchResults.videos.length === 0 ? (
-                <div className="p-4 text-center text-xs text-[#94A3B8]">No results found for "{searchQuery}"</div>
+                <div className="p-4 text-center text-xs text-[var(--muted)]">No results found for "{searchQuery}"</div>
               ) : (
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-[#64748B] px-3 py-1">
+                  <div className="text-[10px] font-bold   text-[var(--subtle)] px-3 py-1">
                     Songs & Sounds
                   </div>
                   {searchResults.tracks.slice(0, 4).map((t) => (
@@ -163,14 +164,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                         if (onPlayTrack) onPlayTrack(t);
                         setShowSearchDropdown(false);
                       }}
-                      className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-[#1B2130] text-left transition-colors"
+                      className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-[var(--raised)] text-left transition-colors"
                     >
                       <img src={t.coverUrl} alt={t.title} className="w-9 h-9 rounded-lg object-cover" />
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold text-white truncate">{t.title}</div>
-                        <div className="text-[11px] text-[#94A3B8] truncate">{t.artist}</div>
+                        <div className="text-xs font-bold text-[var(--text)] truncate">{t.title}</div>
+                        <div className="text-[11px] text-[var(--muted)] truncate">{t.artist}</div>
                       </div>
-                      <span className="text-[10px] font-semibold text-[#6366F1] bg-[#6366F1]/10 px-2 py-0.5 rounded-full">
+                      <span className="text-[10px] font-semibold text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded-full">
                         Play
                       </span>
                     </button>
@@ -178,7 +179,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {searchResults.videos.slice(0, 4).map((rawVideo) => {
                     const video = rawVideo as ShortVideo & { _id?: string };
                     const normalized: ShortVideo = { ...video, id: video.id || video._id || `search-${video.caption}`, thumbnailUrl: video.thumbnailUrl || '', duration: video.duration || 0 };
-                    return <button key={normalized.id} onClick={() => { onOpenWatch?.(normalized); setShowSearchDropdown(false); }} className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-[#1B2130] text-left transition-colors"><img src={normalized.thumbnailUrl} alt="" className="w-9 h-9 rounded-lg object-cover" /><div className="flex-1 min-w-0"><div className="text-xs font-bold text-white truncate">{normalized.caption}</div><span onClick={(event) => { event.stopPropagation(); onOpenProfile(normalized.creatorHandle.replace(/^@/, '')); }} className="block text-[11px] text-[#94A3B8] truncate hover:underline">{normalized.creatorName}</span></div><span className="text-[10px] font-semibold text-[#6366F1]">Watch</span></button>;
+                    return <button key={normalized.id} onClick={() => { onOpenWatch?.(normalized); setShowSearchDropdown(false); }} className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-[var(--raised)] text-left transition-colors"><img src={normalized.thumbnailUrl} alt="" className="w-9 h-9 rounded-lg object-cover" /><div className="flex-1 min-w-0"><div className="text-xs font-bold text-[var(--text)] truncate">{normalized.caption}</div><span onClick={(event) => { event.stopPropagation(); onOpenProfile(normalized.creatorHandle.replace(/^@/, '')); }} className="block text-[11px] text-[var(--muted)] truncate hover:underline">{normalized.creatorName}</span></div><span className="text-[10px] font-semibold text-[var(--accent)]">Watch</span></button>;
                   })}
                 </div>
               )}
@@ -190,18 +191,18 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="hidden lg:flex items-center gap-3">
           {/* Live Playing Spectrum Bar Mini Indicator */}
           {isPlaying && (
-            <div className="hidden lg:flex items-center gap-1 bg-[#6366F1]/10 border border-[#6366F1]/30 px-3 py-1.5 rounded-full">
-              <span className="w-1.5 h-3 bg-[#6366F1] rounded-full equalizer-bar-1" />
-              <span className="w-1.5 h-4 bg-[#8B5CF6] rounded-full equalizer-bar-2" />
-              <span className="w-1.5 h-2 bg-[#06B6D4] rounded-full equalizer-bar-3" />
-              <span className="text-[11px] font-bold text-[#A5B4FC] ml-1">Live Playing</span>
+            <div className="hidden lg:flex items-center gap-1 bg-[var(--accent)]/10 border border-[var(--accent)]/30 px-3 py-1.5 rounded-full">
+              <span className="w-1.5 h-3 bg-[var(--accent)] rounded-full equalizer-bar-1" />
+              <span className="w-1.5 h-4 bg-[var(--accent)] rounded-full equalizer-bar-2" />
+              <span className="w-1.5 h-2 bg-[var(--accent)] rounded-full equalizer-bar-3" />
+              <span className="text-[11px] font-bold text-[var(--accent-hover)] ml-1">Live Playing</span>
             </div>
           )}
 
           {/* Quick Create Button */}
           <button
             onClick={onOpenUploadModal}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] hover:brightness-110 text-white font-semibold text-xs shadow-md shadow-[#6366F1]/20 transition-all active:scale-95"
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[var(--accent)] to-[var(--accent)] hover:brightness-110 text-[var(--text)] font-semibold text-xs shadow-md shadow-[var(--accent)]/20 transition-all active:scale-95"
           >
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Create</span>
@@ -212,8 +213,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={() => onNavigate('creator-studio')}
             className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
               activeTab === 'creator-studio'
-                ? 'bg-[#1B2130] text-white border-[#6366F1]'
-                : 'bg-[#131722] text-[#94A3B8] border-[#1F273A] hover:text-white hover:border-[#2D374E]'
+                ? 'bg-[var(--raised)] text-[var(--text)] border-[var(--accent)]'
+                : 'bg-[var(--raised)] text-[var(--muted)] border-[var(--border)] hover:text-[var(--text)] hover:border-[var(--border-hover)]'
             }`}
           >
             Studio
@@ -228,12 +229,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onOpenAuth();
               }
             }}
-            className="flex items-center gap-2 p-1 rounded-full bg-[#131722] border border-[#1F273A] hover:border-[#6366F1] transition-all"
+            className="flex items-center gap-2 p-1 rounded-full bg-[var(--raised)] border border-[var(--border)] hover:border-[var(--accent)] transition-all"
           >
             {currentUser ? (
               <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-7 h-7 rounded-full object-cover" />
             ) : (
-              <div className="w-7 h-7 rounded-full bg-[#1B2130] flex items-center justify-center text-[#94A3B8]">
+              <div className="w-7 h-7 rounded-full bg-[var(--raised)] flex items-center justify-center text-[var(--muted)]">
                 <UserIcon className="w-4 h-4" />
               </div>
             )}
@@ -247,22 +248,22 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setShowSearchDropdown((isOpen) => !isOpen)}
               aria-expanded={showSearchDropdown}
               aria-label="Search"
-              className="p-2 rounded-full text-[#94A3B8] hover:text-white hover:bg-[#1B2130] transition-colors"
+              className="p-2 rounded-full text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--raised)] transition-colors"
             >
               <Search className="w-4 h-4" />
             </button>
 
             {showSearchDropdown && (
-              <div className="absolute right-0 top-full mt-2 w-56 max-w-[calc(100vw-5rem)] bg-[#131722] border border-[#1F273A] rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2">
+              <div className="absolute right-0 top-full mt-2 w-56 max-w-[calc(100vw-5rem)] bg-[var(--raised)] border border-[var(--border)] rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2">
                 <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#64748B]" />
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--subtle)]" />
                   <input
                     autoFocus
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search..."
-                    className="w-full bg-[#0F131B] border border-[#1F273A] rounded-lg pl-8 pr-2.5 py-2 text-xs text-white placeholder-[#64748B] focus:outline-none focus:border-[#6366F1] transition-all"
+                    className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg pl-8 pr-2.5 py-2 text-xs text-[var(--text)] placeholder-[var(--subtle)] focus:outline-none focus:border-[var(--accent)] transition-all"
                   />
                 </div>
               </div>
@@ -274,23 +275,23 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setShowCompactMenu((isOpen) => !isOpen)}
               aria-expanded={showCompactMenu}
               aria-label="Open navigation menu"
-              className="flex items-center gap-1 p-1 rounded-full bg-[#131722] border border-[#1F273A] hover:border-[#6366F1] transition-all"
+              className="flex items-center gap-1 p-1 rounded-full bg-[var(--raised)] border border-[var(--border)] hover:border-[var(--accent)] transition-all"
             >
               {currentUser ? (
                 <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-7 h-7 rounded-full object-cover" />
               ) : (
-                <div className="w-7 h-7 rounded-full bg-[#1B2130] flex items-center justify-center text-[#94A3B8]">
+                <div className="w-7 h-7 rounded-full bg-[var(--raised)] flex items-center justify-center text-[var(--muted)]">
                   <UserIcon className="w-4 h-4" />
                 </div>
               )}
-              <ChevronDown className={`w-3.5 h-3.5 text-[#94A3B8] transition-transform ${showCompactMenu ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-3.5 h-3.5 text-[var(--muted)] transition-transform ${showCompactMenu ? 'rotate-180' : ''}`} />
             </button>
 
             {showCompactMenu && (
-              <div className="absolute right-0 top-full mt-2 w-60 max-w-[calc(100vw-2rem)] bg-[#131722] border border-[#1F273A] rounded-2xl shadow-2xl overflow-hidden z-50 p-2 animate-in fade-in slide-in-from-top-2">
-                <div className="px-3 py-2 border-b border-[#1F273A] mb-1">
-                  <p className="text-xs font-bold text-white truncate">{currentUser?.name || 'Kinetic Menu'}</p>
-                  <p className="text-[11px] text-[#64748B]">Navigate Kinetic</p>
+              <div className="absolute right-0 top-full mt-2 w-60 max-w-[calc(100vw-2rem)] bg-[var(--raised)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden z-50 p-2 animate-in fade-in slide-in-from-top-2">
+                <div className="px-3 py-2 border-b border-[var(--border)] mb-1">
+                  <p className="text-xs font-bold text-[var(--text)] truncate">{currentUser?.name || 'Kinetic Menu'}</p>
+                  <p className="text-[11px] text-[var(--subtle)]">Navigate Kinetic</p>
                 </div>
 
                 {navItems.map((item) => (
@@ -302,8 +303,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                     }}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
                       activeTab === item.id
-                        ? 'bg-[#6366F1]/15 text-white'
-                        : 'text-[#94A3B8] hover:bg-[#1B2130] hover:text-white'
+                        ? 'bg-[var(--accent)]/15 text-[var(--text)]'
+                        : 'text-[var(--muted)] hover:bg-[var(--raised)] hover:text-[var(--text)]'
                     }`}
                   >
                     {item.icon}
@@ -311,13 +312,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </button>
                 ))}
 
-                <div className="border-t border-[#1F273A] mt-1 pt-1">
+                <div className="border-t border-[var(--border)] mt-1 pt-1">
                   <button
                     onClick={() => {
                       setShowCompactMenu(false);
                       onOpenUploadModal();
                     }}
-                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-[#94A3B8] hover:bg-[#1B2130] hover:text-white transition-colors"
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-[var(--muted)] hover:bg-[var(--raised)] hover:text-[var(--text)] transition-colors"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Create</span>
@@ -329,8 +330,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                     }}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
                       activeTab === 'creator-studio'
-                        ? 'bg-[#6366F1]/15 text-white'
-                        : 'text-[#94A3B8] hover:bg-[#1B2130] hover:text-white'
+                        ? 'bg-[var(--accent)]/15 text-[var(--text)]'
+                        : 'text-[var(--muted)] hover:bg-[var(--raised)] hover:text-[var(--text)]'
                     }`}
                   >
                     <Sparkles className="w-4 h-4" />
@@ -340,7 +341,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <button
                       onClick={handleLogout}
                       disabled={isLoggingOut}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-[#F87171] hover:bg-[#F43F5E]/10 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-[var(--danger)] hover:bg-[var(--like)]/10 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                     >
                       {isLoggingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
                       <span>{isLoggingOut ? 'Signing out...' : 'Sign Out'}</span>
