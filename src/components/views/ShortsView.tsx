@@ -417,7 +417,7 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
       const comment: LiveComment = {
         id: data.comment._id || data.comment.id || String(Date.now()),
         userHandle: data.comment.userHandle || '@creator',
-        userAvatar: data.comment.userId === currentUser?.id ? (currentUser.avatarUrl || '') : (data.comment.userAvatar || ''),
+        userAvatar: currentUser && data.comment.userId && data.comment.userId === currentUser.id ? (currentUser.avatarUrl || '') : (data.comment.userAvatar || ''),
         timeAgo: 'Just now',
         text: data.comment.text,
         likes: data.comment.likesCount || 0,
@@ -428,7 +428,7 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
         : video));
     };
     const handleLiveLike = (data: { videoId: string; likesCount: number; actorId?: string }) => {
-      if (data.actorId === currentUser?.id || likeInFlightRef.current.has(data.videoId)) return;
+      if ((currentUser && data.actorId && data.actorId === currentUser.id) || likeInFlightRef.current.has(data.videoId)) return;
       serverCountRef.current.set(data.videoId, data.likesCount);
       optimisticCountRef.current.set(data.videoId, data.likesCount);
       setVideos((previous) => previous.map((video) => video.id === data.videoId
@@ -638,7 +638,7 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
   const renderActionRail = () => (
     <div className="flex flex-col items-center gap-1 lg:gap-3" onClick={(event) => event.stopPropagation()}>
       <div className="relative mb-1">
-        <button onClick={() => onOpenProfile(activeHandle)} aria-label="Open creator profile"><Avatar src={activeVideo.creator === currentUser?.id || activeHandle.toLowerCase() === currentUser?.username.toLowerCase() ? currentUser.avatarUrl : activeVideo.creatorAvatar} name={activeVideo.creatorName} size={48} className="border-2 border-white" /></button>
+        <button onClick={() => onOpenProfile(activeHandle)} aria-label="Open creator profile"><Avatar src={currentUser && ((activeVideo.creator && activeVideo.creator === currentUser.id) || activeHandle.toLowerCase() === currentUser.username.toLowerCase()) ? currentUser.avatarUrl : activeVideo.creatorAvatar} name={activeVideo.creatorName} size={48} className="border-2 border-white" /></button>
         <button disabled={!isKineticVideo} onClick={() => void handleFollow()} title={isKineticVideo ? (isFollowing ? 'Following creator' : 'Follow creator') : 'Sample video'} className="absolute -bottom-2 left-1/2 grid h-5 w-5 -translate-x-1/2 place-items-center rounded-full bg-[var(--accent)] text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-50">{isFollowing ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}</button>
       </div>
       {[
@@ -735,7 +735,7 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
     <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-3"><h2 className="text-sm font-bold">Comments</h2><button onClick={() => setIsCommentsOpen(false)} aria-label="Close comments" className="grid h-9 w-9 place-items-center rounded-full hover:bg-white/10"><X className="h-5 w-5" /></button></div>
     {interactionError && <p className="mb-3 text-xs text-[var(--danger)]">{interactionError}</p>}
     <div className="flex-1 space-y-4 overflow-y-auto">
-      {comments.map((comment) => <div key={comment.id} className="flex gap-3"><button onClick={() => onOpenProfile(comment.userHandle.replace(/^@/, ''))}><Avatar src={comment.userHandle.replace(/^@/, '').toLowerCase() === currentUser?.username.toLowerCase() ? currentUser.avatarUrl : comment.userAvatar} name={comment.userHandle} size={36} /></button><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><button onClick={() => onOpenProfile(comment.userHandle.replace(/^@/, ''))} className="text-xs font-bold text-[var(--text)]/80">{comment.userHandle}</button><span className="text-[10px] text-[var(--text)]/40">{comment.timeAgo}</span></div><p className="mt-1 text-xs leading-relaxed text-[var(--text)]/90">{comment.text}</p></div><span className="text-[10px] text-[var(--text)]/50">♥ {comment.likes}</span></div>)}
+      {comments.map((comment) => <div key={comment.id} className="flex gap-3"><button onClick={() => onOpenProfile(comment.userHandle.replace(/^@/, ''))}><Avatar src={currentUser && comment.userHandle.replace(/^@/, '').toLowerCase() === currentUser.username.toLowerCase() ? currentUser.avatarUrl : comment.userAvatar} name={comment.userHandle} size={36} /></button><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><button onClick={() => onOpenProfile(comment.userHandle.replace(/^@/, ''))} className="text-xs font-bold text-[var(--text)]/80">{comment.userHandle}</button><span className="text-[10px] text-[var(--text)]/40">{comment.timeAgo}</span></div><p className="mt-1 text-xs leading-relaxed text-[var(--text)]/90">{comment.text}</p></div><span className="text-[10px] text-[var(--text)]/50">♥ {comment.likes}</span></div>)}
     </div>
     <form onSubmit={handleAddComment} className="mt-4 flex gap-2 border-t border-white/10 pt-4"><input value={newCommentText} onChange={(event) => setNewCommentText(event.target.value)} placeholder="Add a comment..." className="min-w-0 flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-3 text-xs text-[var(--text)] placeholder:text-[var(--text)]/40 focus:border-[var(--accent)] focus:outline-none" /><button type="submit" aria-label="Send comment" className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--accent)]"><Send className="h-4 w-4" /></button></form>
   </aside>;

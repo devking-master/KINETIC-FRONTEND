@@ -253,7 +253,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
                 <div className="space-y-2">
                   <button onClick={(event) => { event.stopPropagation(); onOpenProfile(v.creatorHandle.replace(/^@/, '')); }} className="flex items-center gap-2 text-left">
-                    <Avatar src={v.creator === currentUser?.id ? currentUser.avatarUrl : v.creatorAvatar} name={v.creatorName} size={24} className="border border-white/40" />
+                    <Avatar src={currentUser && v.creator && v.creator === currentUser.id ? currentUser.avatarUrl : v.creatorAvatar} name={v.creatorName} size={24} className="border border-white/40" />
                     <span className="text-xs font-bold text-[var(--text)] truncate hover:underline">{v.creatorName}</span>
                   </button>
                   <p className="text-xs text-[var(--text)]/90 font-medium line-clamp-2 leading-snug">

@@ -192,7 +192,7 @@ export const WatchView: React.FC<WatchViewProps> = ({
                 className="shrink-0"
               >
                 <Avatar
-                  src={video.creator === currentUser?.id || video.creatorHandle.replace(/^@/, '').toLowerCase() === currentUser?.username.toLowerCase() ? currentUser.avatarUrl : video.creatorAvatar}
+                  src={currentUser && ((video.creator && video.creator === currentUser.id) || video.creatorHandle.replace(/^@/, '').toLowerCase() === currentUser.username.toLowerCase()) ? currentUser.avatarUrl : video.creatorAvatar}
                   name={video.creatorName}
                   size={48}
                   className="border-2 border-[var(--accent)]"
@@ -355,7 +355,7 @@ const Comments = ({
       {comments.map((comment) => (
         <div key={comment.id} className="flex gap-3">
           <Avatar
-            src={comment.userHandle.replace(/^@/, '').toLowerCase() === currentUser?.username.toLowerCase() ? currentUser.avatarUrl : comment.userAvatar}
+            src={currentUser && comment.userHandle.replace(/^@/, '').toLowerCase() === currentUser.username.toLowerCase() ? currentUser.avatarUrl : comment.userAvatar}
             name={comment.userHandle}
             size={32}
           />
