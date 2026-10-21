@@ -13,18 +13,24 @@ import {
   commentCreateSchema,
   playlistCreateSchema,
   playlistTrackSchema,
+  onboardingSchema,
 } from '../middleware/validate';
-import { authLimiter, socialLimiter } from '../middleware/rateLimiters';
+import { authLimiter, socialLimiter, signatureLimiter } from '../middleware/rateLimiters';
 import { Track } from '../models/Track';
 import { Video } from '../models/Video';
 import { Playlist } from '../models/Playlist';
-import jwt from 'jsonwebtoken';
 import { z } from 'zod';
+import { isAllowedOrigin } from '../config/origins';
+import { clearRefreshCookie } from '../utils/cookies';
+import { verifyAccessToken, signAccessToken, verifyRefreshToken, signRefreshToken } from '../utils/tokens';
 import { Comment, Like, Follow } from '../models/Social';
 import { SavedVideo } from '../models/SavedVideo';
 import { User } from '../models/User';
 import { getJamendoTracks, getPexelsVideos } from '../services/externalMedia';
 import { emitCommentAdded, emitVideoLikeUpdated, emitTrackLikeUpdated } from '../services/socketService';
+import { withViewerState } from '../services/viewerState';
+import { withCommentAvatars, withCreatorAvatars } from '../services/avatars';
+import mongoose from 'mongoose';
 
 const router = Router();
 
@@ -43,6 +49,21 @@ const reportActionSchema = z.object({
   action: z.enum(['dismiss', 'remove']),
 });
 
+const likeWriteQueues = new Map<string, Promise<void>>();
+const serializeLikeWrite = async <T>(key: string, write: () => Promise<T>): Promise<T> => {
+  const previous = likeWriteQueues.get(key) || Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => { release = resolve; });
+  likeWriteQueues.set(key, current);
+  await previous;
+  try {
+    return await write();
+  } finally {
+    release();
+    if (likeWriteQueues.get(key) === current) likeWriteQueues.delete(key);
+  }
+};
+
 // ============================================================
 // AUTH ROUTES
 // ============================================================
@@ -52,69 +73,94 @@ router.get('/auth/me', requireAuth, getCurrentUser);
 
 // Refresh access token using a long-lived refresh token (stored in httpOnly cookie)
 router.post('/auth/refresh', async (req: Request, res: Response) => {
+  const origin = req.headers.origin || '';
+  const clientHeader = req.headers['x-kinetic-client'];
+  if (!isAllowedOrigin(origin) || clientHeader !== 'web') {
+    res.status(403).json({ message: 'Forbidden' });
+    return;
+  }
   try {
     const refreshToken = req.cookies?.refreshToken;
     if (!refreshToken) {
       res.status(401).json({ message: 'No refresh token provided' });
       return;
     }
-    const jwtSecret = process.env.JWT_SECRET || 'kinetic-super-secret-key-2026';
     let payload: { id: string; tokenVersion: number };
     try {
-      payload = jwt.verify(refreshToken, jwtSecret) as { id: string; tokenVersion: number };
+      payload = verifyRefreshToken(refreshToken);
     } catch {
-      res.clearCookie('refreshToken');
+      clearRefreshCookie(res);
       res.status(401).json({ message: 'Invalid or expired refresh token' });
       return;
     }
 
     const user = await User.findById(payload.id).select('tokenVersion role username email');
     if (!user || user.tokenVersion !== payload.tokenVersion) {
-      res.clearCookie('refreshToken');
+      clearRefreshCookie(res);
       res.status(401).json({ message: 'Session invalidated. Please log in again.' });
       return;
     }
 
-    const newAccessToken = jwt.sign(
-      { id: user._id, email: user.email, username: user.username, role: user.role },
-      jwtSecret,
-      { expiresIn: '1h' }
-    );
+    const newAccessToken = signAccessToken({ id: String(user._id), email: user.email, username: user.username, role: user.role });
     res.json({ token: newAccessToken });
   } catch (err) {
-    res.status(500).json({ message: 'Error refreshing token', error: err instanceof Error ? err.message : err });
+    console.error('[Kinetic] refresh error:', err instanceof Error ? err.message : err);
+    res.status(500).json({ message: 'Error refreshing token' });
   }
 });
 
 // Logout: increment tokenVersion so all existing refresh tokens become invalid
-router.post('/auth/logout', requireAuth, async (req: AuthRequest, res: Response) => {
+router.post('/auth/logout', async (req: AuthRequest, res: Response) => {
+  const origin = req.headers.origin || '';
+  const clientHeader = req.headers['x-kinetic-client'];
+  if (!isAllowedOrigin(origin) || clientHeader !== 'web') {
+    res.status(403).json({ message: 'Forbidden' });
+    return;
+  }
   try {
-    await User.findByIdAndUpdate(req.user!.id, { $inc: { tokenVersion: 1 } });
-    res.clearCookie('refreshToken');
+    // Identify the user from the refresh cookie (works even when the 1h access token has expired),
+    // falling back to a still-valid access token.
+    let userId: string | undefined;
+    try {
+      if (req.cookies?.refreshToken) userId = verifyRefreshToken(req.cookies.refreshToken).id;
+    } catch { /* invalid cookie: just clear it below */ }
+    if (!userId) {
+      const header = req.headers.authorization;
+      if (header?.startsWith('Bearer ')) {
+        try { userId = verifyAccessToken(header.split(' ')[1]).id; } catch { /* ignore */ }
+      }
+    }
+    if (userId) await User.findByIdAndUpdate(userId, { $inc: { tokenVersion: 1 } });
+    clearRefreshCookie(res);
     res.json({ message: 'Logged out successfully' });
   } catch (err) {
-    res.status(500).json({ message: 'Error logging out', error: err instanceof Error ? err.message : err });
+    console.error('[Kinetic] logout error:', err instanceof Error ? err.message : err);
+    res.status(500).json({ message: 'Error logging out' });
   }
 });
 
 // Update user profile
 router.patch('/auth/profile', requireAuth, validateBody(profileUpdateSchema), async (req: AuthRequest, res: Response) => {
   try {
-    const { bio, name, avatarUrl, coverUrl } = req.body;
+    const { bio, name, avatarUrl, coverUrl, interests, onboardingIntent, onboardingCompleted } = req.body;
     const update: Record<string, unknown> = {};
     if (bio !== undefined) update.bio = bio;
     if (name) update.name = name;
-    if (avatarUrl) update.avatarUrl = avatarUrl;
-    if (coverUrl) update.coverUrl = coverUrl;
+    if (avatarUrl !== undefined) update.avatarUrl = avatarUrl;
+    if (coverUrl !== undefined) update.coverUrl = coverUrl;
+    if (interests !== undefined) update['interests.genres'] = [...new Set(interests)];
+    if (onboardingIntent !== undefined) update.onboardingIntent = onboardingIntent;
+    if (onboardingCompleted !== undefined) update.onboardingCompleted = onboardingCompleted;
 
-    const user = await User.findByIdAndUpdate(req.user!.id, update, { new: true }).select('-passwordHash');
+    const user = await User.findByIdAndUpdate(req.user!.id, update, { returnDocument: 'after' }).select('-passwordHash');
     if (!user) {
       res.status(404).json({ message: 'User not found' });
       return;
     }
     res.json({ user });
   } catch (err) {
-    res.status(500).json({ message: 'Error updating profile', error: err instanceof Error ? err.message : err });
+    console.error('[Kinetic] profile update error:', err instanceof Error ? err.message : err);
+    res.status(500).json({ message: 'Error updating profile' });
   }
 });
 
@@ -136,7 +182,7 @@ router.get('/users/:username', async (req: Request, res: Response) => {
     let isFollowing = false;
     if (authHeader?.startsWith('Bearer ')) {
       try {
-        const viewer = jwt.verify(authHeader.slice(7), process.env.JWT_SECRET || 'kinetic-super-secret-key-2026') as { id: string };
+        const viewer = verifyAccessToken(authHeader.slice(7));
         isFollowing = !!(await Follow.exists({ followerId: viewer.id, followingId: user._id }));
       } catch {
         isFollowing = false;
@@ -144,22 +190,23 @@ router.get('/users/:username', async (req: Request, res: Response) => {
     }
     res.json({
       user,
-      tracks,
-      videos,
-      playlists,
+      tracks: await withViewerState(await withCreatorAvatars(tracks as any[]), getOptionalUser(req)?.id, 'track'),
+      videos: await withViewerState(await withCreatorAvatars(videos as any[]), getOptionalUser(req)?.id, 'video'),
+      playlists: await withCreatorAvatars(playlists as any[]),
       totalUploads: tracks.length + videos.length,
       totalLikesReceived: likes.length,
       isFollowing,
     });
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching user', error: err instanceof Error ? err.message : err });
+    console.error('[Kinetic] get user error:', err instanceof Error ? err.message : err);
+    res.status(500).json({ message: 'Error fetching user' });
   }
 });
 
 // ============================================================
 // UPLOAD ROUTES (Cloudinary Signed Upload Flow)
 // ============================================================
-router.get('/upload/signature', requireAuth, getUploadSignature);
+router.get('/upload/signature', requireAuth, signatureLimiter, getUploadSignature);
 router.post('/upload/track', requireAuth, validateBody(trackUploadSchema), createUploadedTrack);
 router.post('/upload/video', requireAuth, validateBody(videoUploadSchema), createUploadedVideo);
 
@@ -187,18 +234,18 @@ router.get('/music', async (req: Request, res: Response) => {
     const combined = [...ownTracks, ...apiTracks.slice(0, remainingSlots)];
 
     res.json({
-      tracks: combined,
+      tracks: await withViewerState(await withCreatorAvatars(combined as any[]), getOptionalUser(req)?.id, 'track'),
       total: ownTotal + apiTracks.length,
       page,
       hasMore: skip + ownTracks.length < ownTotal,
       source: ownTracks.length > 0 ? (apiTracks.length > 0 ? 'mixed' : 'database') : (apiTracks.length > 0 ? 'jamendo' : 'database-seed'),
     });
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching music', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error fetching music' });
   }
 });
 
-router.get('/music/trending', async (_req: Request, res: Response) => {
+router.get('/music/trending', async (req: Request, res: Response) => {
   try {
     // Newest uploads surface first, then live provider tracks fill the rest of the list.
     const [ownTracks, apiTracks] = await Promise.all([
@@ -213,20 +260,20 @@ router.get('/music/trending', async (_req: Request, res: Response) => {
     const combined = [...ownTracks, ...apiTracks.slice(0, remainingSlots)];
 
     res.json({
-      tracks: combined,
+      tracks: await withViewerState(await withCreatorAvatars(combined as any[]), getOptionalUser(req)?.id, 'track'),
       source: ownTracks.length > 0 ? (apiTracks.length > 0 ? 'mixed' : 'database') : (apiTracks.length > 0 ? 'jamendo' : 'database-seed'),
     });
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching trending music', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error fetching trending music' });
   }
 });
 
 router.get('/music/mine', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tracks = await Track.find({ uploadedBy: req.user!.id }).sort({ createdAt: -1 });
-    res.json({ tracks });
+    res.json({ tracks: await withViewerState(await withCreatorAvatars(tracks as any[]), req.user!.id, 'track') });
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching your tracks', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error fetching your tracks' });
   }
 });
 
@@ -238,12 +285,121 @@ const getOptionalUser = (req: Request) => {
   if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
   const token = authHeader.split(' ')[1];
   try {
-    const jwtSecret = process.env.JWT_SECRET || 'kinetic-super-secret-key-2026';
-    return jwt.verify(token, jwtSecret) as { id: string; email: string; username: string };
+    return verifyAccessToken(token);
   } catch {
     return null;
   }
 };
+
+const onboardingFallbackGenres = ['ambient', 'electronic', 'hip hop', 'jazz', 'pop', 'rock', 'soul', 'world'];
+const onboardingFallbackTopics = ['music', 'dance', 'comedy', 'gaming', 'art', 'fashion', 'fitness', 'travel'];
+let onboardingOptionsCache: { expiresAt: number; value: { genres: Array<{ key: string; label: string; count: number }>; topics: Array<{ key: string; label: string; count: number }> } } | null = null;
+const optionKey = (value: unknown) => String(value || '').trim().toLowerCase().replace(/^#/, '').replace(/\s+/g, ' ');
+const optionLabel = (key: string) => key.replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+router.get('/onboarding/options', async (_req: Request, res: Response) => {
+  try {
+    if (onboardingOptionsCache && onboardingOptionsCache.expiresAt > Date.now()) {
+      res.json(onboardingOptionsCache.value);
+      return;
+    }
+    const [trackGenres, apiTracks, topicCounts] = await Promise.all([
+      Track.aggregate<{ _id: string; count: number }>([
+        { $group: { _id: { $toLower: { $trim: { input: '$genre' } } }, count: { $sum: 1 } } },
+        { $match: { _id: { $ne: '' } } },
+      ]),
+      getJamendoTracks().catch(() => []),
+      Video.aggregate<{ _id: string; count: number }>([
+        { $unwind: '$hashtags' },
+        { $group: { _id: { $toLower: { $replaceAll: { input: '$hashtags', find: '#', replacement: '' } } }, count: { $sum: 1 } } },
+        { $match: { _id: { $ne: '' } } },
+        { $sort: { count: -1 } },
+        { $limit: 40 },
+      ]),
+    ]);
+    const genreCounts = new Map<string, number>(trackGenres.map(({ _id, count }) => [optionKey(_id), count]));
+    apiTracks.forEach((track) => {
+      const key = optionKey(track.genre);
+      if (key) genreCounts.set(key, (genreCounts.get(key) || 0) + 1);
+    });
+    onboardingFallbackGenres.forEach((key) => { if (!genreCounts.has(key)) genreCounts.set(key, 0); });
+    const topicMap = new Map(topicCounts.map((item) => [optionKey(item._id), item.count]));
+    onboardingFallbackTopics.forEach((key) => { if (!topicMap.has(key)) topicMap.set(key, 0); });
+    const value = {
+      genres: [...genreCounts].map(([key, count]) => ({ key, label: optionLabel(key), count })).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
+      topics: [...topicMap].map(([key, count]) => ({ key, label: optionLabel(key), count })).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
+    };
+    onboardingOptionsCache = { value, expiresAt: Date.now() + 10 * 60 * 1000 };
+    res.json(value);
+  } catch (err) {
+    res.status(500).json({ message: 'Unable to load onboarding options' });
+  }
+});
+
+router.get('/onboarding/suggested-creators', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const [viewer, followed, videoCreatorIds, trackCreatorIds] = await Promise.all([
+      User.findById(req.user!.id).select('interests').lean(),
+      Follow.find({ followerId: req.user!.id }).distinct('followingId'),
+      Video.distinct('creator', { creator: { $exists: true } }),
+      Track.distinct('uploadedBy', { uploadedBy: { $exists: true } }),
+    ]);
+    const excludedIds = new Set([req.user!.id, ...followed.map(String)]);
+    const creatorIds = [...new Set([...videoCreatorIds, ...trackCreatorIds].map(String))].filter((id) => !excludedIds.has(id));
+    if (!creatorIds.length) { res.json({ creators: [] }); return; }
+    const creators = await User.find({ _id: { $in: creatorIds } }).select('name username avatarUrl followersCount').lean();
+    const [creatorVideos, creatorTracks] = await Promise.all([
+      Video.find({ creator: { $in: creators.map((creator) => creator._id) } }).select('creator hashtags').lean(),
+      Track.find({ uploadedBy: { $in: creators.map((creator) => creator._id) } }).select('uploadedBy genre').lean(),
+    ]);
+    const interests = viewer?.interests || { genres: [], topics: [] };
+    const genres = new Set((interests.genres || []).map((genre: string) => genre.toLowerCase()));
+    const topics = new Set((interests.topics || []).map((topic: string) => topic.toLowerCase().replace(/^#/, '')));
+    const scores = new Map<string, number>();
+    creatorVideos.forEach((video) => {
+      const id = String(video.creator);
+      const match = (video.hashtags || []).filter((tag) => topics.has(String(tag).toLowerCase().replace(/^#/, ''))).length;
+      scores.set(id, (scores.get(id) || 0) + match * 3);
+    });
+    creatorTracks.forEach((track) => {
+      const id = String(track.uploadedBy);
+      if (track.genre && genres.has(track.genre.toLowerCase())) scores.set(id, (scores.get(id) || 0) + 4);
+    });
+    const suggested = creators.map((creator) => ({
+      id: String(creator._id),
+      name: creator.name,
+      username: creator.username,
+      avatarUrl: creator.avatarUrl || '',
+      followersCount: creator.followersCount || 0,
+      isFollowing: false,
+      score: scores.get(String(creator._id)) || 0,
+    })).sort((a, b) => b.score - a.score || b.followersCount - a.followersCount).slice(0, 12)
+      .map(({ score: _score, ...creator }) => creator);
+    res.json({ creators: suggested });
+  } catch (err) {
+    res.status(500).json({ message: 'Unable to load suggested creators' });
+  }
+});
+
+router.patch('/onboarding', requireAuth, socialLimiter, validateBody(onboardingSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const { genres, topics, role, name, bio, avatarUrl } = req.body;
+    const update: Record<string, unknown> = {
+      interests: { genres: [...new Set(genres)], topics: [...new Set(topics)] },
+      role,
+      onboardingCompleted: true,
+      onboardedAt: new Date(),
+    };
+    if (name?.trim()) update.name = name.trim();
+    if (bio !== undefined) update.bio = bio;
+    if (avatarUrl !== undefined) update.avatarUrl = avatarUrl;
+    const user = await User.findByIdAndUpdate(req.user!.id, update, { returnDocument: 'after' }).select('-passwordHash');
+    if (!user) { res.status(404).json({ message: 'User not found' }); return; }
+    res.json({ user });
+  } catch (err) {
+    res.status(500).json({ message: 'Unable to save onboarding' });
+  }
+});
 
 router.get('/discover/recommended', async (req: Request, res: Response) => {
   try {
@@ -254,6 +410,10 @@ router.get('/discover/recommended', async (req: Request, res: Response) => {
     let followingIds = new Set<string>();
 
     if (user?.id) {
+      const viewer = await User.findById(user.id).select('interests').lean();
+      const interests = viewer?.interests as unknown as { genres?: string[]; topics?: string[] } | undefined;
+      (interests?.genres || []).forEach((genre) => preferredGenres.add(genre.toLowerCase()));
+      (interests?.topics || []).forEach((topic) => preferredHashtags.add(topic.toLowerCase().replace(/^#/, '')));
       const [likes, follows] = await Promise.all([
         Like.find({ userId: user.id }),
         Follow.find({ followerId: user.id }),
@@ -313,12 +473,12 @@ router.get('/discover/recommended', async (req: Request, res: Response) => {
     const recommendedVideos = scoredVideos.slice(0, 20).map((s) => s.video);
 
     res.json({
-      tracks: recommendedTracks,
-      videos: recommendedVideos,
+      tracks: await withViewerState(await withCreatorAvatars(recommendedTracks as any[]), user?.id, 'track'),
+      videos: await withViewerState(await withCreatorAvatars(recommendedVideos as any[]), user?.id, 'video'),
       personalized: user !== null && (preferredGenres.size > 0 || followingIds.size > 0 || preferredHashtags.size > 0),
     });
   } catch (err) {
-    res.status(500).json({ message: 'Error generating recommendations', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error generating recommendations' });
   }
 });
 
@@ -357,9 +517,12 @@ router.get('/music/search', async (req: Request, res: Response) => {
     const remainingVideoSlots = Math.max(0, 20 - uploadedVideos.length);
     const blendedVideos = [...uploadedVideos, ...apiVideos.slice(0, remainingVideoSlots)];
 
-    res.json({ tracks: blendedTracks, videos: blendedVideos });
+    res.json({
+      tracks: await withViewerState(await withCreatorAvatars(blendedTracks as any[]), getOptionalUser(req)?.id, 'track'),
+      videos: await withViewerState(await withCreatorAvatars(blendedVideos as any[]), getOptionalUser(req)?.id, 'video'),
+    });
   } catch (err) {
-    res.status(500).json({ message: 'Error searching media', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error searching media' });
   }
 });
 
@@ -372,9 +535,9 @@ router.get('/music/:id', async (req: Request, res: Response) => {
     }
     // Increment play count in background
     Track.findByIdAndUpdate(req.params.id, { $inc: { playsCount: 1 } }).exec();
-    res.json({ track });
+    res.json({ track: (await withViewerState(await withCreatorAvatars([track as any]), getOptionalUser(req)?.id, 'track'))[0] });
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching track', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error fetching track' });
   }
 });
 
@@ -382,24 +545,30 @@ router.post('/music/:id/like', requireAuth, socialLimiter, async (req: AuthReque
   try {
     const trackId = req.params.id;
     const userId = req.user!.id;
-
-    const existing = await Like.findOne({ userId, targetId: trackId, targetType: 'track' });
-    let newLikes = 0;
-    if (existing) {
-      await Like.deleteOne({ _id: existing._id });
-      const updated = await Track.findByIdAndUpdate(trackId, { $inc: { likesCount: -1 } }, { new: true }).select('likesCount');
-      newLikes = updated?.likesCount || 0;
-      emitTrackLikeUpdated(trackId, newLikes);
-      res.json({ liked: false, likesCount: newLikes });
-    } else {
-      await Like.create({ userId, targetId: trackId, targetType: 'track' });
-      const updated = await Track.findByIdAndUpdate(trackId, { $inc: { likesCount: 1 } }, { new: true }).select('likesCount');
-      newLikes = updated?.likesCount || 0;
-      emitTrackLikeUpdated(trackId, newLikes);
-      res.json({ liked: true, likesCount: newLikes });
+    if (!mongoose.isValidObjectId(trackId)) {
+      res.status(400).json({ message: 'Likes are only available on Kinetic tracks' });
+      return;
     }
+    const track = await Track.findById(trackId).select('_id');
+    if (!track) { res.status(404).json({ message: 'Track not found' }); return; }
+    const { liked, likesCount } = await serializeLikeWrite(`track:${trackId}`, async () => {
+      const filter = { userId, targetId: trackId, targetType: 'track' as const };
+      const existing = await Like.exists(filter);
+      const nextLiked = typeof req.body?.liked === 'boolean' ? req.body.liked : !existing;
+      if (nextLiked) {
+        try { await Like.updateOne(filter, { $setOnInsert: filter }, { upsert: true }); }
+        catch (error) { if ((error as { code?: number }).code !== 11000) throw error; }
+      } else {
+        await Like.deleteOne(filter);
+      }
+      const count = await Like.countDocuments({ targetId: trackId, targetType: 'track' });
+      await Track.updateOne({ _id: trackId }, { $set: { likesCount: count } });
+      return { liked: nextLiked, likesCount: count };
+    });
+    emitTrackLikeUpdated(trackId, likesCount);
+    res.json({ liked, likesCount });
   } catch (err) {
-    res.status(500).json({ message: 'Error processing track like', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error processing track like' });
   }
 });
 
@@ -412,12 +581,39 @@ router.get('/videos', async (req: Request, res: Response) => {
     const limit = Math.min(50, Math.max(1, Number.parseInt(String(req.query.limit || '20'), 10) || 20));
     const skip = (page - 1) * limit;
 
-    // Treat uploads and provider results as one ordered sequence across pages.
+    const viewerId = getOptionalUser(req)?.id;
     const ownTotal = await Video.countDocuments();
     const ownCount = Math.max(0, Math.min(limit, ownTotal - skip));
-    const ownVideos = ownCount > 0
-      ? await Video.find().sort({ createdAt: -1 }).skip(skip).limit(ownCount)
-      : [];
+    let ownVideos: any[] = [];
+    let personalized = false;
+    if (viewerId) {
+      const [viewer, follows] = await Promise.all([
+        User.findById(viewerId).select('interests').lean(),
+        Follow.find({ followerId: viewerId }).distinct('followingId'),
+      ]);
+      const genres = new Set(viewer?.interests?.genres || []);
+      const topics = new Set((viewer?.interests?.topics || []).map((topic: string) => topic.toLowerCase().replace(/^#/, '')));
+      personalized = genres.size > 0 || topics.size > 0;
+      if (personalized) {
+        const candidates = await Video.find().sort({ createdAt: -1 }).limit(500);
+        const followingIds = new Set(follows.map(String));
+        const scored = candidates.map((video) => {
+          const creatorId = String((video.creator as any)?._id || video.creator || '');
+          let score = creatorId && followingIds.has(creatorId) ? 5 : 0;
+          (video.hashtags || []).forEach((tag: string) => {
+            if (topics.has(tag.toLowerCase().replace(/^#/, ''))) score += 3;
+          });
+          score += Math.log10((video.likesCount || 0) + 1);
+          return { video, score };
+        }).sort((a, b) => b.score - a.score);
+        ownVideos = scored.slice(skip, skip + limit).map(({ video }) => video);
+      }
+    }
+    if (!personalized) {
+      ownVideos = ownCount > 0
+        ? await Video.find().sort({ createdAt: -1 }).skip(skip).limit(ownCount)
+        : [];
+    }
 
     let apiVideos: Awaited<ReturnType<typeof getPexelsVideos>> = [];
     try {
@@ -431,18 +627,19 @@ router.get('/videos', async (req: Request, res: Response) => {
     const combined = [...ownVideos, ...apiVideos.slice(apiOffset, apiOffset + remainingSlots)];
 
     res.json({
-      videos: combined,
+      videos: await withViewerState(await withCreatorAvatars(combined as any[]), getOptionalUser(req)?.id, 'video'),
       total: ownTotal + apiVideos.length,
       page,
       hasMore: skip + combined.length < ownTotal + apiVideos.length,
+      personalized,
       source: ownVideos.length > 0 ? (apiVideos.length > 0 ? 'mixed' : 'database') : (apiVideos.length > 0 ? 'pexels' : 'database-seed'),
     });
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching videos', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error fetching videos' });
   }
 });
 
-router.get('/videos/trending', async (_req: Request, res: Response) => {
+router.get('/videos/trending', async (req: Request, res: Response) => {
   try {
     // Newest uploads surface first, then live provider videos fill the rest of the list.
     const [ownVideos, apiVideos] = await Promise.all([
@@ -457,11 +654,11 @@ router.get('/videos/trending', async (_req: Request, res: Response) => {
     const combined = [...ownVideos, ...apiVideos.slice(0, remainingSlots)];
 
     res.json({
-      videos: combined,
+      videos: await withViewerState(await withCreatorAvatars(combined as any[]), getOptionalUser(req)?.id, 'video'),
       source: ownVideos.length > 0 ? (apiVideos.length > 0 ? 'mixed' : 'database') : (apiVideos.length > 0 ? 'pexels' : 'database-seed'),
     });
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching trending videos', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error fetching trending videos' });
   }
 });
 
@@ -482,18 +679,18 @@ router.get('/videos/following', requireAuth, async (req: AuthRequest, res: Respo
       Video.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
       Video.countDocuments(filter),
     ]);
-    res.json({ videos, total, page, hasMore: skip + videos.length < total, followingCount: followingIds.length });
+    res.json({ videos: await withViewerState(await withCreatorAvatars(videos as any[]), req.user!.id, 'video'), total, page, hasMore: skip + videos.length < total, followingCount: followingIds.length });
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching followed creators videos', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error fetching followed creators videos' });
   }
 });
 
 router.get('/videos/mine', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const videos = await Video.find({ creator: req.user!.id }).sort({ createdAt: -1 });
-    res.json({ videos });
+    res.json({ videos: await withViewerState(await withCreatorAvatars(videos as any[]), req.user!.id, 'video') });
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching your videos', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error fetching your videos' });
   }
 });
 
@@ -504,9 +701,9 @@ router.get('/videos/:id', async (req: Request, res: Response) => {
       res.status(404).json({ message: 'Video not found' });
       return;
     }
-    res.json({ video });
+    res.json({ video: (await withViewerState(await withCreatorAvatars([video as any]), getOptionalUser(req)?.id, 'video'))[0] });
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching video', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error fetching video' });
   }
 });
 
@@ -516,7 +713,7 @@ router.post('/videos/:id/view', socialLimiter, async (req: Request, res: Respons
     const video = await Video.findByIdAndUpdate(
       req.params.id,
       { $inc: { viewsCount: 1 } },
-      { new: true, projection: { viewsCount: 1 } }
+      { returnDocument: 'after', projection: { viewsCount: 1 } }
     );
     if (!video) {
       res.status(404).json({ message: 'Video not found' });
@@ -524,7 +721,7 @@ router.post('/videos/:id/view', socialLimiter, async (req: Request, res: Respons
     }
     res.json({ viewsCount: video.viewsCount });
   } catch (err) {
-    res.status(500).json({ message: 'Error recording video view', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error recording video view' });
   }
 });
 
@@ -533,26 +730,30 @@ router.post('/videos/:id/like', requireAuth, socialLimiter, async (req: AuthRequ
   try {
     const videoId = req.params.id;
     const userId = req.user!.id;
-
-    const existing = await Like.findOne({ userId, targetId: videoId, targetType: 'video' });
-    let newCount = 0;
-    if (existing) {
-      await Like.deleteOne({ _id: existing._id });
-      await Video.findByIdAndUpdate(videoId, { $inc: { likesCount: -1 } });
-      const video = await Video.findById(videoId).select('likesCount');
-      newCount = video?.likesCount || 0;
-      emitVideoLikeUpdated(videoId, newCount);
-      res.json({ liked: false, likesCount: newCount });
-    } else {
-      await Like.create({ userId, targetId: videoId, targetType: 'video' });
-      await Video.findByIdAndUpdate(videoId, { $inc: { likesCount: 1 } });
-      const video = await Video.findById(videoId).select('likesCount');
-      newCount = video?.likesCount || 0;
-      emitVideoLikeUpdated(videoId, newCount);
-      res.json({ liked: true, likesCount: newCount });
+    if (!mongoose.isValidObjectId(videoId)) {
+      res.status(400).json({ message: 'Likes are only available on Kinetic videos' });
+      return;
     }
+    const video = await Video.findById(videoId).select('_id');
+    if (!video) { res.status(404).json({ message: 'Video not found' }); return; }
+    const { liked, likesCount } = await serializeLikeWrite(`video:${videoId}`, async () => {
+      const filter = { userId, targetId: videoId, targetType: 'video' as const };
+      const existing = await Like.exists(filter);
+      const nextLiked = typeof req.body?.liked === 'boolean' ? req.body.liked : !existing;
+      if (nextLiked) {
+        try { await Like.updateOne(filter, { $setOnInsert: filter }, { upsert: true }); }
+        catch (error) { if ((error as { code?: number }).code !== 11000) throw error; }
+      } else {
+        await Like.deleteOne(filter);
+      }
+      const count = await Like.countDocuments({ targetId: videoId, targetType: 'video' });
+      await Video.updateOne({ _id: videoId }, { $set: { likesCount: count } });
+      return { liked: nextLiked, likesCount: count };
+    });
+    emitVideoLikeUpdated(videoId, likesCount, userId);
+    res.json({ liked, likesCount });
   } catch (err) {
-    res.status(500).json({ message: 'Error processing like', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error processing like' });
   }
 });
 
@@ -572,7 +773,7 @@ router.post('/videos/:id/save', requireAuth, socialLimiter, async (req: AuthRequ
     await SavedVideo.create({ userId, videoId });
     res.json({ saved: true });
   } catch (err) {
-    res.status(500).json({ message: 'Error saving video', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error saving video' });
   }
 });
 
@@ -582,7 +783,7 @@ router.post('/videos/:id/share', socialLimiter, async (req: Request, res: Respon
     const video = await Video.findByIdAndUpdate(
       req.params.id,
       { $inc: { sharesCount: 1 } },
-      { new: true, projection: { sharesCount: 1 } }
+      { returnDocument: 'after', projection: { sharesCount: 1 } }
     );
     if (!video) {
       res.status(404).json({ message: 'Video not found' });
@@ -590,7 +791,7 @@ router.post('/videos/:id/share', socialLimiter, async (req: Request, res: Respon
     }
     res.json({ sharesCount: video.sharesCount });
   } catch (err) {
-    res.status(500).json({ message: 'Error recording video share', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error recording video share' });
   }
 });
 
@@ -600,9 +801,9 @@ router.get('/videos/:id/comments', async (req: Request, res: Response) => {
     const comments = await Comment.find({ videoId: req.params.id })
       .sort({ createdAt: -1 })
       .limit(50);
-    res.json({ comments });
+    res.json({ comments: await withCommentAvatars(comments as any[]) });
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching comments', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error fetching comments' });
   }
 });
 
@@ -619,16 +820,17 @@ router.post('/videos/:id/comments', requireAuth, socialLimiter, validateBody(com
       userId: req.user!.id,
       userName: req.user!.username,
       userHandle: `@${req.user!.username}`,
-      userAvatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(req.user!.username)}`,
+      userAvatar: '',
       text: text.trim(),
     });
 
-    const video = await Video.findByIdAndUpdate(req.params.id, { $inc: { commentsCount: 1 } }, { new: true }).select('commentsCount');
+    const video = await Video.findByIdAndUpdate(req.params.id, { $inc: { commentsCount: 1 } }, { returnDocument: 'after' }).select('commentsCount');
     const commentsCount = video?.commentsCount || 0;
-    emitCommentAdded(req.params.id, comment, commentsCount);
-    res.status(201).json({ comment, commentsCount });
+    const [commentWithAvatar] = await withCommentAvatars([comment as any]);
+    emitCommentAdded(req.params.id, commentWithAvatar, commentsCount);
+    res.status(201).json({ comment: commentWithAvatar, commentsCount });
   } catch (err) {
-    res.status(500).json({ message: 'Error posting comment', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error posting comment' });
   }
 });
 
@@ -648,7 +850,7 @@ router.delete('/comments/:id', requireAuth, async (req: AuthRequest, res: Respon
     await Video.findByIdAndUpdate(comment.videoId, { $inc: { commentsCount: -1 } });
     res.json({ message: 'Comment deleted' });
   } catch (err) {
-    res.status(500).json({ message: 'Error deleting comment', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error deleting comment' });
   }
 });
 
@@ -686,7 +888,7 @@ router.post('/users/:userId/follow', requireAuth, socialLimiter, async (req: Aut
       res.json({ following: true });
     }
   } catch (err) {
-    res.status(500).json({ message: 'Error processing follow', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error processing follow' });
   }
 });
 
@@ -696,18 +898,18 @@ router.post('/users/:userId/follow', requireAuth, socialLimiter, async (req: Aut
 router.get('/playlists', async (_req: Request, res: Response) => {
   try {
     const playlists = await Playlist.find().populate('tracks').limit(30);
-    res.json({ playlists });
+    res.json({ playlists: await withCreatorAvatars(playlists as any[]) });
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching playlists', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error fetching playlists' });
   }
 });
 
 router.get('/playlists/my', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const playlists = await Playlist.find({ owner: req.user!.id }).populate('tracks');
-    res.json({ playlists });
+    res.json({ playlists: await withCreatorAvatars(playlists as any[]) });
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching user playlists', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error fetching user playlists' });
   }
 });
 
@@ -720,9 +922,9 @@ router.post('/playlists', requireAuth, validateBody(playlistCreateSchema), async
       coverUrl: coverUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80',
       owner: req.user!.id,
     });
-    res.status(201).json({ playlist });
+    res.status(201).json({ playlist: (await withCreatorAvatars([playlist as any]))[0] });
   } catch (err) {
-    res.status(500).json({ message: 'Error creating playlist', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error creating playlist' });
   }
 });
 
@@ -736,15 +938,15 @@ router.post('/playlists/:id/tracks', requireAuth, validateBody(playlistTrackSche
     const playlist = await Playlist.findOneAndUpdate(
       { _id: req.params.id, owner: req.user!.id },
       { $addToSet: { tracks: trackId } },
-      { new: true }
+      { returnDocument: 'after' }
     ).populate('tracks');
     if (!playlist) {
       res.status(404).json({ message: 'Playlist not found or unauthorized' });
       return;
     }
-    res.json({ playlist });
+    res.json({ playlist: (await withCreatorAvatars([playlist as any]))[0] });
   } catch (err) {
-    res.status(500).json({ message: 'Error adding track to playlist', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error adding track to playlist' });
   }
 });
 
@@ -753,15 +955,15 @@ router.delete('/playlists/:id/tracks/:trackId', requireAuth, async (req: AuthReq
     const playlist = await Playlist.findOneAndUpdate(
       { _id: req.params.id, owner: req.user!.id },
       { $pull: { tracks: req.params.trackId } },
-      { new: true }
+      { returnDocument: 'after' }
     ).populate('tracks');
     if (!playlist) {
       res.status(404).json({ message: 'Playlist not found or unauthorized' });
       return;
     }
-    res.json({ playlist });
+    res.json({ playlist: (await withCreatorAvatars([playlist as any]))[0] });
   } catch (err) {
-    res.status(500).json({ message: 'Error removing track from playlist', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error removing track from playlist' });
   }
 });
 
@@ -774,7 +976,7 @@ router.delete('/playlists/:id', requireAuth, async (req: AuthRequest, res: Respo
     }
     res.json({ message: 'Playlist deleted' });
   } catch (err) {
-    res.status(500).json({ message: 'Error deleting playlist', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error deleting playlist' });
   }
 });
 
@@ -803,7 +1005,7 @@ router.post('/report', requireAuth, socialLimiter, validateBody(reportSchema), a
 
     res.status(201).json({ message: 'Content reported. Our team will review it shortly.' });
   } catch (err) {
-    res.status(500).json({ message: 'Error submitting report', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error submitting report' });
   }
 });
 
@@ -824,7 +1026,7 @@ router.get('/admin/reports', requireAuth, requireAdmin as unknown as (req: AuthR
     const reports = await Report.find({ status: 'pending' }).sort({ createdAt: -1 }).limit(100);
     res.json({ reports });
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching reports', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error fetching reports' });
   }
 });
 
@@ -857,7 +1059,7 @@ router.patch('/admin/reports/:reportId', requireAuth, requireAdmin as unknown as
     await report.save();
     res.json({ message: `Report ${action === 'remove' ? 'actioned and content removed' : 'dismissed'}`, report });
   } catch (err) {
-    res.status(500).json({ message: 'Error processing report action', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ message: 'Error processing report action' });
   }
 });
 

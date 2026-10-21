@@ -1,14 +1,14 @@
 import mongoose from 'mongoose';
 import { Track } from '../models/Track';
 import { Video } from '../models/Video';
-import { User } from '../models/User';
-import bcrypt from 'bcryptjs';
 
 // One-time cleanup: removes any leftover demo/sample tracks & videos that
 // don't belong to a real uploader. Real uploads always set `uploadedBy` /
 // `creator` (enforced by the authenticated upload routes), so this only
 // ever touches old seed data and is a safe no-op once that's gone.
+// Gated behind RUN_LEGACY_CLEANUP=true so it never runs automatically.
 const removeLegacyDemoContent = async () => {
+  if (process.env.RUN_LEGACY_CLEANUP !== 'true') return;
   try {
     const demoTrackResult = await Track.deleteMany({ uploadedBy: { $exists: false } });
     const demoVideoResult = await Video.deleteMany({ creator: { $exists: false } });
@@ -19,30 +19,6 @@ const removeLegacyDemoContent = async () => {
     }
   } catch (err) {
     console.warn('[Kinetic DB Cleanup Note]:', err instanceof Error ? err.message : err);
-  }
-};
-
-const seedAdminAccountIfMissing = async () => {
-  try {
-    const userCount = await User.countDocuments();
-    if (userCount === 0) {
-      console.log('[Kinetic DB] Seeding default admin creator account...');
-      const salt = await bcrypt.genSalt(10);
-      const passwordHash = await bcrypt.hash('kinetic2026', salt);
-      await User.create({
-        name: 'Kinetic Creator',
-        username: 'kinetic_creator',
-        email: 'creator@kinetic.com',
-        passwordHash,
-        avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=kinetic_creator',
-        bio: 'Official Kinetic Pioneer Creator',
-        role: 'creator',
-        followersCount: 1240,
-        followingCount: 84,
-      });
-    }
-  } catch (err) {
-    console.warn('[Kinetic DB Seed Note]:', err instanceof Error ? err.message : err);
   }
 };
 
@@ -60,7 +36,6 @@ export const connectDB = async (): Promise<void> => {
   }
 
   await removeLegacyDemoContent();
-  await seedAdminAccountIfMissing();
 };
 
 export const getDatabaseStatus = () => {

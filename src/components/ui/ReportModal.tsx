@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Flag, X, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Flag, X, ChevronRight, AlertTriangle } from './Icon';
 import { authApi } from '../../services/authApi';
 import { SpinnerInline } from './StateFeedback';
 

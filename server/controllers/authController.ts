@@ -1,34 +1,10 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { User } from '../models/User';
 import { AuthRequest } from '../middleware/auth';
+import { signAccessToken, signRefreshToken } from '../utils/tokens';
+import { setRefreshCookie } from '../utils/cookies';
 
-const REFRESH_COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
-
-const getJwtSecret = (): string => process.env.JWT_SECRET || 'kinetic-super-secret-key-2026';
-
-const generateAccessToken = (user: { _id: unknown; email: string; username: string; role: string }): string => {
-  return jwt.sign(
-    { id: String(user._id), email: user.email, username: user.username, role: user.role },
-    getJwtSecret(),
-    { expiresIn: '1h' }
-  );
-};
-
-const generateRefreshToken = (userId: string, tokenVersion: number): string => {
-  return jwt.sign({ id: userId, tokenVersion }, getJwtSecret(), { expiresIn: '30d' });
-};
-
-const setRefreshCookie = (res: Response, token: string) => {
-  res.cookie('refreshToken', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: REFRESH_COOKIE_MAX_AGE,
-    path: '/api/auth',
-  });
-};
 
 export const signup = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -54,11 +30,12 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
       email,
       passwordHash,
       role: role || 'creator',
-      avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(username)}`,
+      avatarUrl: '',
+      onboardingCompleted: false,
     });
 
-    const token = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(String(user._id), user.tokenVersion ?? 0);
+    const token = signAccessToken({ id: String(user._id), email: user.email, username: user.username, role: user.role });
+    const refreshToken = signRefreshToken({ id: String(user._id), tokenVersion: user.tokenVersion ?? 0 });
     setRefreshCookie(res, refreshToken);
 
     res.status(201).json({
@@ -74,10 +51,14 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
         role: user.role,
         followersCount: user.followersCount,
         followingCount: user.followingCount,
+        interests: user.interests,
+        onboardingIntent: user.onboardingIntent,
+        onboardingCompleted: user.onboardingCompleted,
       },
     });
   } catch (err) {
-    res.status(500).json({ message: 'Server error during user registration', error: err instanceof Error ? err.message : err });
+    console.error('[Kinetic] signup error:', err instanceof Error ? err.message : err);
+    res.status(500).json({ message: 'Server error during user registration' });
   }
 };
 
@@ -105,8 +86,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const token = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(String(user._id), user.tokenVersion ?? 0);
+    const token = signAccessToken({ id: String(user._id), email: user.email, username: user.username, role: user.role });
+    const refreshToken = signRefreshToken({ id: String(user._id), tokenVersion: user.tokenVersion ?? 0 });
     setRefreshCookie(res, refreshToken);
 
     res.status(200).json({
@@ -122,10 +103,14 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         role: user.role,
         followersCount: user.followersCount,
         followingCount: user.followingCount,
+        interests: user.interests,
+        onboardingIntent: user.onboardingIntent,
+        onboardingCompleted: user.onboardingCompleted,
       },
     });
   } catch (err) {
-    res.status(500).json({ message: 'Server error during login', error: err instanceof Error ? err.message : err });
+    console.error('[Kinetic] login error:', err instanceof Error ? err.message : err);
+    res.status(500).json({ message: 'Server error during login' });
   }
 };
 
@@ -144,6 +129,7 @@ export const getCurrentUser = async (req: AuthRequest, res: Response): Promise<v
 
     res.status(200).json({ user });
   } catch (err) {
-    res.status(500).json({ message: 'Error retrieving user profile', error: err instanceof Error ? err.message : err });
+    console.error('[Kinetic] getCurrentUser error:', err instanceof Error ? err.message : err);
+    res.status(500).json({ message: 'Error retrieving user profile' });
   }
 };

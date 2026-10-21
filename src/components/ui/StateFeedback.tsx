@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2, AlertCircle, SearchX, Radio, WifiOff } from 'lucide-react';
+import { Loader2, AlertCircle, SearchX, Radio, WifiOff } from './Icon';
 
 type StateType = 'loading' | 'error' | 'empty' | 'offline';
 
@@ -127,7 +127,7 @@ export const EmptyFeed: React.FC<{ onUpload?: () => void }> = ({ onUpload }) => 
     {onUpload && (
       <button
         onClick={onUpload}
-        className="px-6 py-3 rounded-full bg-gradient-to-r from-[var(--accent)] to-[var(--accent)] text-[var(--text)] font-bold text-sm hover:opacity-90 transition-opacity active:scale-95 shadow-lg shadow-[var(--accent)]/30"
+        className="px-6 py-3 rounded-full bg-[var(--accent)] text-[var(--text)] font-bold text-sm hover:opacity-90 transition-opacity active:scale-95 shadow-lg"
       >
         Upload Your First Short
       </button>

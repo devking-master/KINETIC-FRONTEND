@@ -16,7 +16,7 @@ const CommentSchema: Schema = new Schema({
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   userName: { type: String, required: true },
   userHandle: { type: String, required: true },
-  userAvatar: { type: String, required: true },
+  userAvatar: { type: String, default: '' },
   text: { type: String, required: true, trim: true },
   likesCount: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now }

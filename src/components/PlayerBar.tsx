@@ -14,7 +14,7 @@ import {
   ChevronDown,
   X,
   Loader2
-} from 'lucide-react';
+} from './ui/Icon';
 import { html5Player, PlayerState } from '../services/html5Player';
 import { clearTrackCache } from '../services/musicApi';
 import { KineticLogo } from './KineticLogo';
@@ -213,7 +213,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({ onNavigate }) => {
           than a cramped card. Being fixed inset-0 also sidesteps any
           stacking-context/height issues a nested dropup card could hit. */}
       {isExpanded && (
-        <div className="lg:hidden fixed inset-0 z-50 bg-gradient-to-b from-[var(--raised)] to-[var(--bg)] flex flex-col animate-in slide-in-from-bottom duration-300">
+        <div className="lg:hidden fixed inset-0 z-50 bg-[var(--raised)] flex flex-col animate-in slide-in-from-bottom duration-300">
           {/* Top bar */}
           <div className="flex items-center justify-between px-5 pt-5 pb-2 shrink-0">
             <button
@@ -241,7 +241,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({ onNavigate }) => {
                 {track.coverUrl ? (
                   <img src={track.coverUrl} alt={track.title} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-[var(--raised)] to-[var(--raised)] flex items-center justify-center">
+                  <div className="w-full h-full bg-[var(--raised)] flex items-center justify-center">
                     <KineticLogo showText={false} size="lg" animated={!hasTrack} />
                   </div>
                 )}
@@ -309,7 +309,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({ onNavigate }) => {
         {/* Slim progress indicator — visible only on the compact mobile/tablet bar */}
         <div className="lg:hidden h-0.5 w-full bg-[var(--border)]">
           <div
-            className="h-full bg-gradient-to-r from-[var(--accent)] to-[var(--accent)] transition-all duration-200"
+            className="h-full bg-[var(--accent)] transition-all duration-200"
             style={{ width: `${progressPct}%` }}
           />
         </div>
@@ -326,7 +326,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({ onNavigate }) => {
               {track.coverUrl ? (
                 <img src={track.coverUrl} alt={track.title} className="w-10 h-10 rounded-xl object-cover shadow-md border border-[var(--border)]" />
               ) : (
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--raised)] to-[var(--raised)] border border-[var(--border)] flex items-center justify-center shadow-md">
+                <div className="w-10 h-10 rounded-xl bg-[var(--raised)] border border-[var(--border)] flex items-center justify-center shadow-md">
                   <KineticLogo showText={false} size="sm" animated={!hasTrack} />
                 </div>
               )}
@@ -349,7 +349,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({ onNavigate }) => {
                   className="w-12 h-12 rounded-xl object-cover shadow-md border border-[var(--border)]"
                 />
               ) : (
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[var(--raised)] to-[var(--raised)] border border-[var(--border)] flex items-center justify-center shadow-md">
+                <div className="w-12 h-12 rounded-xl bg-[var(--raised)] border border-[var(--border)] flex items-center justify-center shadow-md">
                   <KineticLogo showText={false} size="sm" animated={!hasTrack} />
                 </div>
               )}

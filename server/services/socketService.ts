@@ -49,9 +49,9 @@ export const emitCommentAdded = (videoId: string, comment: unknown, commentsCoun
   io.emit('video:comment_count_updated', { videoId, commentsCount });
 };
 
-export const emitVideoLikeUpdated = (videoId: string, likesCount: number) => {
+export const emitVideoLikeUpdated = (videoId: string, likesCount: number, actorId: string) => {
   if (!io) return;
-  io.emit('video:like_updated', { videoId, likesCount });
+  io.to(`video:${videoId}`).emit('video:like_updated', { videoId, likesCount, actorId });
 };
 
 export const emitTrackLikeUpdated = (trackId: string, likesCount: number) => {

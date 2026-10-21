@@ -1,16 +1,18 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import './shorts-view.css';
 import {
   Bookmark, Check, ChevronDown, ChevronUp, Compass,
   Disc3, Flag, Heart, Home, Library, Loader2, LogIn, MessageCircle,
   MoreHorizontal, Music, Play, Plus, Search, Send, Share2, Upload,
   UserRound, Volume2, VolumeX, X,
-} from 'lucide-react';
+} from '../ui/Icon';
 import { ActiveTab, AuthUser, LiveComment, ShortVideo, Track } from '../../types';
 import { videoApi } from '../../services/videoApi';
 import { authApi } from '../../services/authApi';
 import { getSocket, joinVideoRoom, leaveVideoRoom } from '../../services/socket';
 import { KineticLogo } from '../KineticLogo';
 import { ReportModal } from '../ui/ReportModal';
+import { Avatar } from '../ui/Avatar';
 
 const EMPTY_VIDEO: ShortVideo = {
   id: 'empty-video', creatorHandle: '', creatorName: '', creatorAvatar: '', verified: false,
@@ -47,6 +49,8 @@ interface ShortsViewProps {
   currentShort?: ShortVideo;
   refreshKey?: number;
   currentUser?: AuthUser | null;
+  authChecked: boolean;
+  onRequireAuth: () => void;
   onSelectTrack: (track: Track) => void;
   onNavigate: (tab: ActiveTab) => void;
   onOpenUploadModal?: () => void;
@@ -58,6 +62,8 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
   currentShort,
   refreshKey = 0,
   currentUser,
+  authChecked,
+  onRequireAuth,
   onSelectTrack,
   onNavigate,
   onOpenUploadModal,
@@ -92,7 +98,7 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [searchText, setSearchText] = useState('');
-  const [viewportSize, setViewportSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+
 
   const feedRef = useRef<HTMLDivElement | null>(null);
   const videoRefs = useRef(new Map<string, HTMLVideoElement>());
@@ -102,21 +108,52 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
   const loadingMoreRef = useRef(false);
   const initialPageLoadedRef = useRef(false);
   const lastActiveVideoIdRef = useRef('');
-  const lastTapRef = useRef(0);
+  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
   const clickTimerRef = useRef<number | null>(null);
+  const pointerGestureRef = useRef({ active: false, moved: false, cancelled: false, startX: 0, startY: 0 });
+  const lastScrollAtRef = useRef(Date.now());
+  const likeInFlightRef = useRef(new Set<string>());
+  const pendingLikeRef = useRef(new Map<string, boolean>());
+  const likedStateRef = useRef(new Map<string, boolean>());
+  const serverLikedRef = useRef(new Map<string, boolean>());
+  const serverCountRef = useRef(new Map<string, number>());
+  const optimisticCountRef = useRef(new Map<string, number>());
   const viewedIdsRef = useRef(new Set(getViewedVideoIds()));
   const viewProgressRef = useRef(new Map<string, { playedMs: number; startedAt: number; timer: number | null }>());
   const wasPlayingWhenHiddenRef = useRef(false);
 
   const activeVideo = videos[currentIndex] || EMPTY_VIDEO;
-  const desktopStageWidth = Math.max(320, viewportSize.width - (viewportSize.width >= 1280 ? 240 : 72) - (isCommentsOpen && viewportSize.width >= 1024 ? 380 : 0));
-  const desktopCardWidth = Math.max(180, Math.min((viewportSize.height - 24) * 9 / 16, desktopStageWidth - (isCommentsOpen ? 120 : 0)));
-  const commentsCardStyle: React.CSSProperties | undefined = isCommentsOpen && viewportSize.width >= 1024
-    ? { width: `${desktopCardWidth}px`, height: `${desktopCardWidth * 16 / 9}px`, transform: 'translateX(-60px)' }
-    : undefined;
   const isLiked = likedMap[activeVideo.id] ?? activeVideo.isLiked ?? false;
   const isBookmarked = bookmarkedMap[activeVideo.id] ?? activeVideo.isBookmarked ?? false;
-  const isFollowing = followingMap[activeVideo.creatorHandle] ?? false;
+  const isFollowing = followingMap[activeVideo.creatorHandle] ?? activeVideo.isFollowingCreator ?? false;
+  const isKineticVideo = activeVideo.source !== 'api' && /^[a-f\d]{24}$/i.test(activeVideo.id);
+
+  const seedViewerState = (items: ShortVideo[]) => {
+    setLikedMap((previous) => {
+      const next = { ...previous };
+      items.forEach((video) => {
+        if (next[video.id] === undefined) next[video.id] = !!video.isLiked;
+        likedStateRef.current.set(video.id, next[video.id]);
+        serverLikedRef.current.set(video.id, !!video.isLiked);
+      });
+      return next;
+    });
+    setBookmarkedMap((previous) => {
+      const next = { ...previous };
+      items.forEach((video) => { if (next[video.id] === undefined) next[video.id] = !!video.isBookmarked; });
+      return next;
+    });
+    setFollowingMap((previous) => {
+      const next = { ...previous };
+      items.forEach((video) => { if (next[video.creatorHandle] === undefined) next[video.creatorHandle] = !!video.isFollowingCreator; });
+      return next;
+    });
+    items.forEach((video) => {
+      const count = video.likesCount || Number.parseInt(video.likes || '0', 10) || 0;
+      serverCountRef.current.set(video.id, count);
+      if (!optimisticCountRef.current.has(video.id)) optimisticCountRef.current.set(video.id, count);
+    });
+  };
 
   const scrollToVideo = useCallback((index: number, behavior: ScrollBehavior = 'smooth') => {
     const feed = feedRef.current;
@@ -127,6 +164,13 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
 
   const changeCategory = (category: 'Following' | 'For You') => {
     if (category === activeCategory) return;
+    if (category === 'Following') {
+      if (!authChecked) return;
+      if (!currentUser) {
+        onRequireAuth();
+        return;
+      }
+    }
     setActiveCategory(category);
     setIsCommentsOpen(false);
     setComments([]);
@@ -163,6 +207,7 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
           else loaded.unshift(currentShort);
         }
         setVideos(loaded);
+        seedViewerState(loaded);
         setCurrentIndex(index);
         setPage(1);
         setHasMore(result.hasMore);
@@ -191,9 +236,11 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
     try {
       const result = await videoApi.getFeedPage(page + 1, activeCategory === 'Following', token || undefined);
       if (requestId !== feedRequestIdRef.current) return;
+      seedViewerState(result.videos);
       setVideos((previous) => {
         const knownIds = new Set(previous.map((video) => video.id));
-        return [...previous, ...result.videos.filter((video) => !knownIds.has(video.id))];
+        const additions = result.videos.filter((video) => !knownIds.has(video.id));
+        return [...previous, ...additions];
       });
       setPage((previous) => previous + 1);
       setHasMore(result.hasMore);
@@ -231,7 +278,13 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
     return () => cancelAnimationFrame(frame);
   }, [currentIndex, scrollToVideo, videos.length]);
 
-  useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+    lastScrollAtRef.current = Date.now();
+    lastTapRef.current = null;
+    if (clickTimerRef.current !== null) window.clearTimeout(clickTimerRef.current);
+    clickTimerRef.current = null;
+  }, [currentIndex]);
 
   useEffect(() => {
     const feed = feedRef.current;
@@ -259,11 +312,7 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
     };
   }, []);
 
-  useEffect(() => {
-    const handleResize = () => setViewportSize({ width: window.innerWidth, height: window.innerHeight });
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+
 
   const recordViewAfterPlayback = (videoId: string) => {
     if (viewedIdsRef.current.has(videoId)) return;
@@ -368,7 +417,7 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
       const comment: LiveComment = {
         id: data.comment._id || data.comment.id || String(Date.now()),
         userHandle: data.comment.userHandle || '@creator',
-        userAvatar: data.comment.userAvatar || '',
+        userAvatar: data.comment.userId === currentUser?.id ? (currentUser.avatarUrl || '') : (data.comment.userAvatar || ''),
         timeAgo: 'Just now',
         text: data.comment.text,
         likes: data.comment.likesCount || 0,
@@ -378,7 +427,10 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
         ? { ...video, commentsCount: formatCount(data.commentsCount) }
         : video));
     };
-    const handleLiveLike = (data: { videoId: string; likesCount: number }) => {
+    const handleLiveLike = (data: { videoId: string; likesCount: number; actorId?: string }) => {
+      if (data.actorId === currentUser?.id || likeInFlightRef.current.has(data.videoId)) return;
+      serverCountRef.current.set(data.videoId, data.likesCount);
+      optimisticCountRef.current.set(data.videoId, data.likesCount);
       setVideos((previous) => previous.map((video) => video.id === data.videoId
         ? { ...video, likesCount: data.likesCount, likes: formatCount(data.likesCount) }
         : video));
@@ -390,40 +442,68 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
       socket.off('video:comment_added', handleLiveComment);
       socket.off('video:like_updated', handleLiveLike);
     };
-  }, [activeVideo.id]);
+  }, [activeVideo.id, currentUser?.id, currentUser?.avatarUrl]);
 
-  const handleLike = async (forceLike = false) => {
+  const handleLike = (desiredState?: boolean) => {
     const token = authApi.getToken();
     if (!token) { setInteractionError('Sign in to like videos.'); return; }
-    if (forceLike && isLiked) return;
     const videoId = activeVideo.id;
-    const previousLiked = isLiked;
-    const previousCount = activeVideo.likesCount || 0;
-    const nextLiked = forceLike || !previousLiked;
+    if (!isKineticVideo) { setInteractionError('Sample video'); return; }
+    const previousLiked = likedStateRef.current.get(videoId) ?? isLiked;
+    const nextLiked = desiredState ?? !previousLiked;
+    if (nextLiked === previousLiked) return;
+    likedStateRef.current.set(videoId, nextLiked);
+    const previousCount = optimisticCountRef.current.get(videoId) ?? activeVideo.likesCount ?? 0;
     const nextCount = Math.max(0, previousCount + (nextLiked ? 1 : -1));
+    optimisticCountRef.current.set(videoId, nextCount);
     setLikedMap((previous) => ({ ...previous, [videoId]: nextLiked }));
     setVideos((previous) => previous.map((video) => video.id === videoId
       ? { ...video, likesCount: nextCount, likes: formatCount(nextCount), isLiked: nextLiked }
       : video));
-    try {
-      const result = await videoApi.toggleLikeVideo(videoId, token);
-      setLikedMap((previous) => ({ ...previous, [videoId]: result.liked }));
-      if (typeof result.likesCount === 'number') setVideos((previous) => previous.map((video) => video.id === videoId
-        ? { ...video, likesCount: result.likesCount!, likes: formatCount(result.likesCount!), isLiked: result.liked }
-        : video));
-    } catch (error) {
-      setLikedMap((previous) => ({ ...previous, [videoId]: previousLiked }));
-      setVideos((previous) => previous.map((video) => video.id === videoId
-        ? { ...video, likesCount: previousCount, likes: formatCount(previousCount), isLiked: previousLiked }
-        : video));
-      setInteractionError(error instanceof Error ? error.message : 'Unable to update like.');
-    }
+    pendingLikeRef.current.set(videoId, nextLiked);
+    if (likeInFlightRef.current.has(videoId)) return;
+    likeInFlightRef.current.add(videoId);
+    void (async () => {
+      try {
+        while (pendingLikeRef.current.has(videoId)) {
+          const desired = pendingLikeRef.current.get(videoId)!;
+          pendingLikeRef.current.delete(videoId);
+          const serverLiked = serverLikedRef.current.get(videoId) ?? false;
+          if (desired === serverLiked) continue;
+          const result = await videoApi.setLike(videoId, desired, token);
+          const confirmedCount = result.likesCount ?? serverCountRef.current.get(videoId) ?? 0;
+          serverLikedRef.current.set(videoId, result.liked);
+          serverCountRef.current.set(videoId, confirmedCount);
+          const latestDesired = likedStateRef.current.get(videoId) ?? result.liked;
+          const displayCount = Math.max(0, confirmedCount + (latestDesired === result.liked ? 0 : latestDesired ? 1 : -1));
+          optimisticCountRef.current.set(videoId, displayCount);
+          setVideos((previous) => previous.map((video) => video.id === videoId
+            ? { ...video, likesCount: displayCount, likes: formatCount(displayCount), isLiked: latestDesired }
+            : video));
+          if (latestDesired !== result.liked) pendingLikeRef.current.set(videoId, latestDesired);
+        }
+      } catch (error) {
+        pendingLikeRef.current.delete(videoId);
+        const confirmedLiked = serverLikedRef.current.get(videoId) ?? false;
+        const confirmedCount = serverCountRef.current.get(videoId) ?? 0;
+        likedStateRef.current.set(videoId, confirmedLiked);
+        optimisticCountRef.current.set(videoId, confirmedCount);
+        setLikedMap((previous) => ({ ...previous, [videoId]: confirmedLiked }));
+        setVideos((previous) => previous.map((video) => video.id === videoId
+          ? { ...video, likesCount: confirmedCount, likes: formatCount(confirmedCount), isLiked: confirmedLiked }
+          : video));
+        setInteractionError(error instanceof Error ? error.message : 'Unable to update like.');
+      } finally {
+        likeInFlightRef.current.delete(videoId);
+      }
+    })();
   };
 
   const handleSave = async () => {
     const token = authApi.getToken();
     if (!token) { setInteractionError('Sign in to save videos.'); return; }
     const videoId = activeVideo.id;
+    if (!isKineticVideo) { setInteractionError('Sample video'); return; }
     const previousSaved = isBookmarked;
     setBookmarkedMap((previous) => ({ ...previous, [videoId]: !previousSaved }));
     try {
@@ -439,6 +519,7 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
     const creatorId = (activeVideo as ShortVideo & { creator?: string }).creator;
     const token = authApi.getToken();
     if (!token) { setInteractionError('Sign in to follow creators.'); return; }
+    if (!isKineticVideo) { setInteractionError('Sample video'); return; }
     if (!creatorId || !/^[a-f\d]{24}$/i.test(creatorId)) {
       setInteractionError('This creator cannot be followed from a provider video.');
       return;
@@ -472,17 +553,30 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
   };
 
   const handleVideoClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    const now = Date.now();
-    if (now - lastTapRef.current < 320) {
+    const gesture = pointerGestureRef.current;
+    const moved = gesture.moved || (gesture.active && Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY) > 10);
+    if (event.detail === 0 || Date.now() - lastScrollAtRef.current < 400 || gesture.cancelled || moved) {
+      gesture.active = false;
+      gesture.moved = false;
+      gesture.cancelled = false;
+      lastTapRef.current = null;
       if (clickTimerRef.current !== null) window.clearTimeout(clickTimerRef.current);
-      lastTapRef.current = 0;
+      clickTimerRef.current = null;
+      return;
+    }
+    gesture.active = false;
+    const now = Date.now();
+    const previousTap = lastTapRef.current;
+    if (previousTap && now - previousTap.time < 320 && Math.hypot(event.clientX - previousTap.x, event.clientY - previousTap.y) <= 28) {
+      if (clickTimerRef.current !== null) window.clearTimeout(clickTimerRef.current);
+      lastTapRef.current = null;
       const bounds = event.currentTarget.getBoundingClientRect();
       setHeartPos({ x: event.clientX - bounds.left, y: event.clientY - bounds.top });
       setShowHeartSplash(true);
       window.setTimeout(() => setShowHeartSplash(false), 800);
       void handleLike(true);
     } else {
-      lastTapRef.current = now;
+      lastTapRef.current = { time: now, x: event.clientX, y: event.clientY };
       clickTimerRef.current = window.setTimeout(() => {
         clickTimerRef.current = null;
         togglePlayback();
@@ -544,18 +638,21 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
   const renderActionRail = () => (
     <div className="flex flex-col items-center gap-1 lg:gap-3" onClick={(event) => event.stopPropagation()}>
       <div className="relative mb-1">
-        {activeVideo.creatorAvatar && <button onClick={() => onOpenProfile(activeHandle)} aria-label="Open creator profile"><img src={activeVideo.creatorAvatar} alt={activeVideo.creatorName} className="h-12 w-12 rounded-full border-2 border-white object-cover" /></button>}
-        <button onClick={() => void handleFollow()} title={isFollowing ? 'Following creator' : 'Follow creator'} className="absolute -bottom-2 left-1/2 grid h-5 w-5 -translate-x-1/2 place-items-center rounded-full bg-[var(--accent)] text-[var(--text)]">{isFollowing ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}</button>
+        <button onClick={() => onOpenProfile(activeHandle)} aria-label="Open creator profile"><Avatar src={activeVideo.creator === currentUser?.id || activeHandle.toLowerCase() === currentUser?.username.toLowerCase() ? currentUser.avatarUrl : activeVideo.creatorAvatar} name={activeVideo.creatorName} size={48} className="border-2 border-white" /></button>
+        <button disabled={!isKineticVideo} onClick={() => void handleFollow()} title={isKineticVideo ? (isFollowing ? 'Following creator' : 'Follow creator') : 'Sample video'} className="absolute -bottom-2 left-1/2 grid h-5 w-5 -translate-x-1/2 place-items-center rounded-full bg-[var(--accent)] text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-50">{isFollowing ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}</button>
       </div>
       {[
         { label: formatCount(activeLikeCount), Icon: Heart, active: isLiked, action: () => void handleLike(), activeClass: 'text-[var(--like)]' },
         { label: formatCount(activeCommentCount), Icon: MessageCircle, active: isCommentsOpen, action: () => setIsCommentsOpen(true), activeClass: 'text-[var(--accent)]' },
         { label: isBookmarked ? 'Saved' : 'Save', Icon: Bookmark, active: isBookmarked, action: () => void handleSave(), activeClass: 'text-[var(--accent)]' },
         { label: 'Share', Icon: Share2, active: false, action: () => onOpenShareModal(activeVideo.caption, activeVideo.id), activeClass: '' },
-      ].map(({ label, Icon, active, action, activeClass }) => <button key={label} onClick={action} aria-label={label} className="flex flex-col items-center gap-0.5 text-[var(--text)] lg:gap-1">
+      ].map(({ label, Icon, active, action, activeClass }) => {
+        const sampleOnlyAction = !isKineticVideo && (Icon === Heart || Icon === Bookmark);
+        return <button key={label} disabled={sampleOnlyAction} onClick={action} aria-label={label} title={sampleOnlyAction ? 'Sample video' : undefined} className="flex flex-col items-center gap-0.5 text-[var(--text)] lg:gap-1 disabled:cursor-not-allowed disabled:opacity-50">
         <span className={`grid h-12 w-12 place-items-center rounded-full bg-white/10 transition-colors hover:bg-white/20 ${active ? activeClass : ''}`}><Icon className={`h-6 w-6 ${active && Icon === Heart ? 'fill-current' : ''}`} /></span>
         <span className="text-[11px] font-semibold leading-none text-[var(--text)] lg:text-xs">{label}</span>
-      </button>)}
+      </button>;
+      })}
     </div>
   );
 
@@ -564,9 +661,9 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
     const isCurrent = index === currentIndex;
     const hashtags: string[] = video.caption.match(/#[\w]+/g) || [];
     const creatorHandle = video.creatorHandle?.replace(/^@/, '') || '';
-    return <section key={video.id} data-feed-index={index} className="relative flex h-full snap-start snap-always shrink-0 items-center justify-center">
-      <div className="relative flex h-full w-full items-center justify-center gap-4 px-0 py-0 lg:px-0 lg:py-3">
-        <div style={isCurrent ? commentsCardStyle : undefined} className="relative h-full w-full max-h-full overflow-hidden rounded-none bg-black lg:max-h-[calc(100dvh-24px)] lg:rounded-2xl lg:h-[calc(100dvh-24px)] lg:w-auto lg:aspect-[9/16] lg:border lg:border-white/10">
+    return <section key={video.id} data-feed-index={index} className="shorts-section relative flex h-full snap-start snap-always shrink-0 items-center justify-center">
+      <div className="shorts-group">
+        <div className="shorts-card relative overflow-hidden bg-black">
           <img src={video.thumbnailUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
           {inLoadWindow && video.videoUrl && <video
             ref={(element) => { if (element) videoRefs.current.set(video.id, element); else videoRefs.current.delete(video.id); }}
@@ -583,7 +680,16 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
             onError={() => { if (isCurrent) { setVideoError(true); setIsBuffering(false); } }}
             className="absolute inset-0 h-full w-full object-cover"
           />}
-          <div onClick={isCurrent ? handleVideoClick : undefined} className="absolute inset-0 z-10" />
+          <div
+            onPointerDown={(event) => { pointerGestureRef.current = { active: true, moved: false, cancelled: false, startX: event.clientX, startY: event.clientY }; }}
+            onPointerMove={(event) => {
+              const gesture = pointerGestureRef.current;
+              if (gesture.active && Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY) > 10) gesture.moved = true;
+            }}
+            onPointerCancel={() => { pointerGestureRef.current.cancelled = true; }}
+            onClick={isCurrent ? handleVideoClick : undefined}
+            className="absolute inset-0 z-10"
+          />
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[35%] bg-gradient-to-t from-black/60 to-transparent" />
           {isCurrent && isBuffering && !videoError && <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center"><Loader2 className="h-8 w-8 animate-spin text-[var(--text)]" /></div>}
           {isCurrent && videoError && <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-black/65 text-center"><p className="text-sm font-semibold">Video unavailable</p><button onClick={() => scrollToVideo(currentIndex + 1)} className="rounded-full bg-[var(--accent)] px-4 py-2 text-xs font-bold">Next</button></div>}
@@ -591,20 +697,20 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
           {isCurrent && !isPlaying && !isBuffering && !videoError && <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center"><span className="grid h-16 w-16 animate-in fade-in duration-200 place-items-center rounded-full bg-black/50"><Play className="ml-1 h-8 w-8 fill-white" /></span></div>}
 
           {isCurrent && <>
-            <button onClick={toggleMute} className="group absolute left-3 top-3 z-30 flex items-center gap-2 rounded-full bg-black/45 p-2 text-[var(--text)]" aria-label={isMuted ? 'Unmute' : 'Mute'}>
+            <button onClick={toggleMute} className="group absolute left-3 top-16 z-30 flex items-center gap-2 rounded-full bg-black/45 p-2 text-[var(--text)] sm:top-3" aria-label={isMuted ? 'Unmute' : 'Mute'}>
               {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
               <input type="range" min="0" max="1" step="0.05" defaultValue="1" onClick={(event) => event.stopPropagation()} onChange={(event) => { const element = videoRefs.current.get(activeVideo.id); if (element) element.volume = Number(event.target.value); if (isMuted) toggleMute(); }} className="hidden w-20 accent-[var(--accent)] group-hover:block" aria-label="Volume" />
             </button>
-            <div className="absolute right-3 top-3 z-30">
+            <div className="absolute right-3 top-16 z-30 sm:top-3">
               <button onClick={() => setShowMenu((open) => !open)} aria-label="More video actions" className="grid h-10 w-10 place-items-center rounded-full bg-black/45 text-[var(--text)]"><MoreHorizontal /></button>
               {showMenu && <div className="absolute right-0 top-12 w-36 rounded-lg border border-white/10 bg-[var(--raised)] p-1 shadow-xl"><button onClick={() => { setReportTarget({ id: video.id, caption: video.caption }); setShowMenu(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs hover:bg-white/10"><Flag className="h-4 w-4" />Report</button></div>}
             </div>
-            <div className="absolute bottom-[76px] left-4 right-20 z-20 space-y-2 text-[var(--text)] lg:bottom-6 lg:right-4" onClick={(event) => event.stopPropagation()}>
+            <div className="absolute bottom-[76px] left-4 right-20 z-20 space-y-2 text-[var(--text)] sm:bottom-5 sm:right-4" onClick={(event) => event.stopPropagation()}>
               <div className="flex items-center gap-2">
                 <button onClick={() => onOpenProfile(creatorHandle)} className="text-sm font-extrabold hover:underline">@{creatorHandle}</button>
                 {video.verified && <span className="grid h-4 w-4 place-items-center rounded-full bg-[var(--accent)]"><Check className="h-3 w-3" /></span>}
                 <span className="hidden text-xs text-[var(--text)]/60 lg:inline">{video.creatorName}</span>
-                <button onClick={() => void handleFollow()} className="hidden rounded-full border border-white/40 px-3 py-1 text-[11px] font-bold hover:border-[var(--accent)] hover:bg-[var(--accent)] lg:inline">{isFollowing ? 'Following' : 'Follow'}</button>
+                <button disabled={!isKineticVideo} title={isKineticVideo ? undefined : 'Sample video'} onClick={() => void handleFollow()} className="hidden rounded-full border border-white/40 px-3 py-1 text-[11px] font-bold hover:border-[var(--accent)] hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50 lg:inline">{isFollowing ? 'Following' : 'Follow'}</button>
               </div>
               <p className={`max-w-full text-sm leading-snug ${captionExpanded ? '' : 'line-clamp-2'}`}>
                 {video.caption.split(/(#[\w]+)/g).map((part, partIndex) => hashtags.includes(part) ? <strong key={partIndex} className="font-extrabold">{part} </strong> : <React.Fragment key={partIndex}>{part}</React.Fragment>)}
@@ -612,24 +718,24 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
               </p>
               <button onClick={() => onSelectTrack({ id: `sound-${video.id}`, title: video.audioTrackTitle, artist: video.audioArtist, album: 'Original Sound', coverUrl: video.thumbnailUrl, duration: 180 })} className="flex max-w-full items-center gap-2 overflow-hidden rounded-full bg-black/40 px-3 py-1.5 text-left">
                 <Disc3 className="h-4 w-4 shrink-0 animate-spin text-[var(--text)]" />
-                <span className="overflow-hidden whitespace-nowrap text-xs font-bold" style={{ animation: 'shorts-marquee 12s linear infinite' }}>{video.audioTrackTitle} · {video.audioArtist}</span>
-                              <span className="inline-block overflow-hidden whitespace-nowrap text-xs font-bold" style={{ animation: 'shorts-marquee 12s linear infinite' }}>{video.audioTrackTitle} · {video.audioArtist}</span>
+                <span className="min-w-0 truncate text-xs font-bold">{video.audioTrackTitle} · {video.audioArtist}</span>
               </button>
             </div>
-            <div className="group absolute inset-x-0 bottom-0 z-30 h-1 cursor-pointer bg-white/20 transition-all hover:h-2" onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); seekToPointer(event); }} onPointerMove={(event) => { if (event.buttons === 1) seekToPointer(event); }}><div className="h-full bg-[var(--accent)]" style={{ width: `${progress}%` }} /></div>
+            <div className="group absolute inset-x-0 bottom-16 z-30 h-1 cursor-pointer bg-white/20 transition-all hover:h-2 sm:bottom-0" onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); seekToPointer(event); }} onPointerMove={(event) => { if (event.buttons === 1) seekToPointer(event); }}><div className="h-full bg-[var(--accent)]" style={{ width: `${progress}%` }} /></div>
           </>}
         </div>
+        <div className="shorts-rail">{isCurrent && renderActionRail()}</div>
       </div>
     </section>;
   };
 
   const renderComments = (desktop: boolean) => <aside className={desktop
     ? 'relative hidden h-full w-[380px] shrink-0 flex-col border-l border-white/10 bg-[var(--bg)] p-5 lg:flex'
-    : 'absolute inset-x-0 bottom-0 z-50 flex max-h-[75dvh] flex-col rounded-t-2xl border-t border-white/10 bg-[var(--bg)] p-5 lg:hidden'}>
+    : 'absolute inset-x-0 bottom-0 z-50 flex max-h-[75dvh] flex-col rounded-t-2xl border-t border-white/10 bg-[var(--bg)] p-5 sm:inset-x-auto sm:left-1/2 sm:w-[min(560px,100%)] sm:-translate-x-1/2 lg:hidden'}>
     <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-3"><h2 className="text-sm font-bold">Comments</h2><button onClick={() => setIsCommentsOpen(false)} aria-label="Close comments" className="grid h-9 w-9 place-items-center rounded-full hover:bg-white/10"><X className="h-5 w-5" /></button></div>
     {interactionError && <p className="mb-3 text-xs text-[var(--danger)]">{interactionError}</p>}
     <div className="flex-1 space-y-4 overflow-y-auto">
-      {comments.map((comment) => <div key={comment.id} className="flex gap-3"><button onClick={() => onOpenProfile(comment.userHandle.replace(/^@/, ''))}><img src={comment.userAvatar} alt="" className="h-9 w-9 rounded-full object-cover" /></button><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><button onClick={() => onOpenProfile(comment.userHandle.replace(/^@/, ''))} className="text-xs font-bold text-white/80">{comment.userHandle}</button><span className="text-[10px] text-white/40">{comment.timeAgo}</span></div><p className="mt-1 text-xs leading-relaxed text-white/90">{comment.text}</p></div><span className="text-[10px] text-white/50">♥ {comment.likes}</span></div>)}
+      {comments.map((comment) => <div key={comment.id} className="flex gap-3"><button onClick={() => onOpenProfile(comment.userHandle.replace(/^@/, ''))}><Avatar src={comment.userHandle.replace(/^@/, '').toLowerCase() === currentUser?.username.toLowerCase() ? currentUser.avatarUrl : comment.userAvatar} name={comment.userHandle} size={36} /></button><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><button onClick={() => onOpenProfile(comment.userHandle.replace(/^@/, ''))} className="text-xs font-bold text-[var(--text)]/80">{comment.userHandle}</button><span className="text-[10px] text-[var(--text)]/40">{comment.timeAgo}</span></div><p className="mt-1 text-xs leading-relaxed text-[var(--text)]/90">{comment.text}</p></div><span className="text-[10px] text-[var(--text)]/50">♥ {comment.likes}</span></div>)}
     </div>
     <form onSubmit={handleAddComment} className="mt-4 flex gap-2 border-t border-white/10 pt-4"><input value={newCommentText} onChange={(event) => setNewCommentText(event.target.value)} placeholder="Add a comment..." className="min-w-0 flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-3 text-xs text-[var(--text)] placeholder:text-[var(--text)]/40 focus:border-[var(--accent)] focus:outline-none" /><button type="submit" aria-label="Send comment" className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--accent)]"><Send className="h-4 w-4" /></button></form>
   </aside>;
@@ -637,7 +743,7 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
   const retryFeed = () => { void loadFirstPage(); };
 
   return <div className="fixed inset-0 z-50 flex h-[100dvh] overflow-hidden bg-black text-[var(--text)]">
-    <style>{'@keyframes shorts-marquee { from { transform: translateX(0); } to { transform: translateX(-35%); } } @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; scroll-behavior: auto !important; transition-duration: 0.01ms !important; } }'}</style>
+    <style>{'@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; scroll-behavior: auto !important; transition-duration: 0.01ms !important; } }'}</style>
 
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[240px] flex-col border-r border-white/10 bg-black px-5 py-7 lg:flex max-[1279px]:w-[72px] max-[1279px]:items-center max-[1279px]:px-2">
       <button onClick={() => onNavigate('home')} className="mb-9 flex items-center max-[1279px]:justify-center" aria-label="Kinetic home"><KineticLogo size="sm" className="max-[1279px]:hidden" /><KineticLogo size="sm" showText={false} className="hidden max-[1279px]:flex" /></button>
@@ -653,14 +759,14 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
       </nav>
       <button onClick={onOpenUploadModal} className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--accent)] text-sm font-bold transition-colors hover:bg-[var(--accent)] max-[1279px]:w-12"><Upload className="h-4 w-4" /><span className="max-[1279px]:hidden">Upload</span></button>
       <div className="mt-auto flex w-full flex-col gap-1 border-t border-white/10 pt-4">
-        <button onClick={() => currentUser ? onOpenProfile(currentUser.username) : onNavigate('auth')} title="Profile" className="flex h-12 items-center gap-4 rounded-lg px-3 text-sm font-semibold text-[var(--text)]/80 hover:bg-white/10 max-[1279px]:justify-center max-[1279px]:px-0">{currentUser?.avatarUrl ? <img src={currentUser.avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" /> : <UserRound className="h-5 w-5" />}<span className="max-[1279px]:hidden">Profile</span></button>
+        <button onClick={() => currentUser ? onOpenProfile(currentUser.username) : onNavigate('auth')} title="Profile" className="flex h-12 items-center gap-4 rounded-lg px-3 text-sm font-semibold text-[var(--text)]/80 hover:bg-white/10 max-[1279px]:justify-center max-[1279px]:px-0">{currentUser ? <Avatar src={currentUser.avatarUrl} name={currentUser.name} size={24} /> : <UserRound className="h-5 w-5" />}<span className="max-[1279px]:hidden">Profile</span></button>
         {!currentUser && <button onClick={() => onNavigate('auth')} title="Sign in" className="flex h-12 items-center gap-4 rounded-lg px-3 text-sm font-semibold text-[var(--text)]/80 hover:bg-white/10 max-[1279px]:justify-center max-[1279px]:px-0"><LogIn className="h-5 w-5" /><span className="max-[1279px]:hidden">Sign in</span></button>}
       </div>
     </aside>
 
     <main className="relative flex min-w-0 flex-1 lg:ml-[240px] max-[1279px]:lg:ml-[72px]">
       <div className="relative flex min-w-0 flex-1 items-center justify-center">
-        <div ref={feedRef} className="h-full w-full overflow-y-scroll snap-y snap-mandatory overscroll-contain no-scrollbar">
+          <div ref={feedRef} onScroll={() => { lastScrollAtRef.current = Date.now(); }} className="h-full w-full overflow-y-scroll snap-y snap-mandatory overscroll-contain no-scrollbar">
           {videos.map(renderSection)}
           {isLoading && videos.length === 0 && <div className="grid h-full place-items-center"><Loader2 className="h-8 w-8 animate-spin text-[var(--accent)]" /></div>}
           {feedError && videos.length === 0 && <div className="absolute inset-0 z-20 grid place-items-center p-8 text-center"><div className="max-w-sm"><p className="text-sm font-semibold">{feedError}</p>{isGuestFollowingFeed ? <button onClick={() => onNavigate('auth')} className="mt-4 rounded-full bg-[var(--accent)] px-5 py-2 text-xs font-bold">Sign in</button> : isFollowingFeedEmpty ? <button onClick={() => onNavigate('discover')} className="mt-4 rounded-full bg-[var(--accent)] px-5 py-2 text-xs font-bold">Discover creators</button> : <button onClick={retryFeed} className="mt-4 rounded-full bg-[var(--accent)] px-5 py-2 text-xs font-bold">Retry</button>}</div></div>}
@@ -670,10 +776,8 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
         <>
           <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center pt-5 lg:hidden"><div className="pointer-events-auto flex items-center gap-6 rounded-full bg-black/25 px-5 py-2 backdrop-blur-sm">{(['Following', 'For You'] as const).map((category) => <button key={category} onClick={() => changeCategory(category)} className={`border-b-2 pb-1 text-sm font-extrabold ${activeCategory === category ? 'border-[var(--accent)] text-[var(--text)]' : 'border-transparent text-[var(--text)]/60'}`}>{category}</button>)}</div></div>
           <div className="absolute right-3 top-5 z-30 lg:hidden"><button onClick={() => onNavigate('discover')} aria-label="Search" className="grid h-10 w-10 place-items-center rounded-full bg-black/30"><Search className="h-5 w-5" /></button></div>
-          <div style={isCommentsOpen ? { left: `calc(50% - 60px + ${desktopCardWidth / 2 + 72}px)`, right: 'auto' } : undefined} className="absolute right-4 top-1/2 z-30 hidden -translate-y-1/2 flex-col gap-3 lg:flex"><button disabled={currentIndex === 0} onClick={() => scrollToVideo(currentIndex - 1)} aria-label="Previous video" className="grid h-12 w-12 place-items-center rounded-full bg-white/10 transition-colors hover:bg-white/20 disabled:opacity-30"><ChevronUp /></button><button disabled={currentIndex >= videos.length - 1 && !hasMore} onClick={() => scrollToVideo(currentIndex + 1)} aria-label="Next video" className="grid h-12 w-12 place-items-center rounded-full bg-white/10 transition-colors hover:bg-white/20 disabled:opacity-30"><ChevronDown /></button></div>
-          {videos.length > 0 && <div className="absolute bottom-[84px] right-3 z-30 flex lg:hidden">{renderActionRail()}</div>}
-          {videos.length > 0 && <div className="absolute bottom-3 z-30 hidden lg:flex" style={{ left: isCommentsOpen ? `calc(50% - 48px + ${desktopCardWidth / 2}px)` : 'calc(50% + 28.125dvh + 8px)' }}>{renderActionRail()}</div>}
-          <nav className="absolute inset-x-0 bottom-0 z-40 flex h-16 items-center justify-around border-t border-white/10 bg-black/65 backdrop-blur-md lg:hidden">
+          <div className="absolute right-4 top-1/2 z-30 hidden -translate-y-1/2 flex-col gap-3 lg:flex"><button disabled={currentIndex === 0} onClick={() => scrollToVideo(currentIndex - 1)} aria-label="Previous video" className="grid h-12 w-12 place-items-center rounded-full bg-white/10 transition-colors hover:bg-white/20 disabled:opacity-30"><ChevronUp /></button><button disabled={currentIndex >= videos.length - 1 && !hasMore} onClick={() => scrollToVideo(currentIndex + 1)} aria-label="Next video" className="grid h-12 w-12 place-items-center rounded-full bg-white/10 transition-colors hover:bg-white/20 disabled:opacity-30"><ChevronDown /></button></div>
+          <nav className="shorts-nav absolute inset-x-0 bottom-0 z-40 flex h-16 items-center justify-around border-t border-white/10 bg-black/65 backdrop-blur-md lg:hidden">
             <button onClick={() => onNavigate('home')} aria-label="Home" className="grid place-items-center text-[var(--text)]/75"><Home className="h-5 w-5" /><span className="mt-1 text-[10px]">Home</span></button>
             <button onClick={() => onNavigate('discover')} aria-label="Discover" className="grid place-items-center text-[var(--text)]/75"><Compass className="h-5 w-5" /><span className="mt-1 text-[10px]">Discover</span></button>
             <button onClick={onOpenUploadModal} aria-label="Upload" className="grid h-10 w-12 place-items-center rounded-lg bg-[var(--accent)] text-[var(--text)]"><Plus className="h-7 w-7" /></button>

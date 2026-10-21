@@ -12,8 +12,8 @@ import {
   AlertCircle,
   BarChart3,
   Layers,
-  Sparkles
-} from 'lucide-react';
+  LayoutDashboard
+} from '../ui/Icon';
 import { ActiveTab } from '../../types';
 import { videoApi } from '../../services/videoApi';
 import { musicApi } from '../../services/musicApi';
@@ -80,15 +80,15 @@ export const CreatorStudioView: React.FC<CreatorStudioViewProps> = ({
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-[var(--border)] pb-6">
         <div>
           <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-[var(--accent)]" />
-            <h1 className="text-3xl font-black text-[var(--text)] font-display ">Creator Studio Workspace</h1>
+            <LayoutDashboard className="w-5 h-5 text-[var(--accent)]" />
+            <h1 className="text-3xl font-black text-[var(--text)] font-display ">Studio</h1>
           </div>
-          <p className="text-xs text-[var(--muted)] mt-1">Manage your catalog, inspect audience analytics, and upload new media</p>
+          <p className="text-xs text-[var(--muted)] mt-1">Your uploads and how they are doing.</p>
         </div>
 
         <button
           onClick={onOpenUploadModal}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-[var(--accent)] to-[var(--accent)] hover:brightness-110 text-[var(--text)] font-bold text-xs shadow-lg shadow-[var(--accent)]/30 transition-all"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--accent)] hover:brightness-110 text-[var(--text)] font-bold text-xs shadow-lg transition-all"
         >
           <Plus className="w-4 h-4" />
           <span>Upload Media</span>
@@ -157,7 +157,7 @@ export const CreatorStudioView: React.FC<CreatorStudioViewProps> = ({
 
       {/* Content Catalog Table */}
       <div className="bg-[var(--raised)] border border-[var(--border)] rounded-2xl p-4 space-y-4">
-        <h3 className="text-sm font-bold text-[var(--text)] font-display px-2">Published Media Catalog</h3>
+        <h3 className="text-sm font-bold text-[var(--text)] font-display px-2">Your uploads</h3>
 
         <div className="divide-y divide-[var(--border)]">
           {contentItems.map(item => (

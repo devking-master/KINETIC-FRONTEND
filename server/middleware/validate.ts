@@ -74,22 +74,54 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Password is required').max(100, 'Password too long'),
 });
 
+export const cloudinaryUrlSchema = z.string().trim().max(1000).refine((val) => {
+  if (!val) return false;
+  const cn = process.env.CLOUDINARY_CLOUD_NAME;
+  if (cn) {
+    return val.startsWith(`https://res.cloudinary.com/${cn}/`);
+  }
+  // No cloud name configured: only tolerated in tests, never in a real deployment.
+  return process.env.NODE_ENV === 'test' && /^https:\/\/res\.cloudinary\.com\/[a-zA-Z0-9_-]+\//.test(val);
+}, { message: 'Must be a valid Cloudinary URL' });
+
+export const optionalCloudinaryUrlSchema = z.string().trim().max(1000).refine((val) => {
+  if (!val) return true;
+  const cn = process.env.CLOUDINARY_CLOUD_NAME;
+  if (cn) {
+    return val.startsWith(`https://res.cloudinary.com/${cn}/`);
+  }
+  return process.env.NODE_ENV === 'test' && /^https:\/\/res\.cloudinary\.com\/[a-zA-Z0-9_-]+\//.test(val);
+}, { message: 'Must be a valid Cloudinary URL' });
+
 export const profileUpdateSchema = z.object({
   bio: z.string().max(300, 'Bio must not exceed 300 characters').optional(),
   name: z.string().trim().min(1, 'Name cannot be empty').max(50, 'Name must be at most 50 characters').optional(),
-  avatarUrl: z.string().url('Avatar URL must be a valid URL').max(500, 'Avatar URL too long').optional().or(z.literal('')),
-  coverUrl: z.string().url('Cover URL must be a valid URL').max(1000, 'Cover URL too long').optional().or(z.literal('')),
+  avatarUrl: optionalCloudinaryUrlSchema.optional(),
+  coverUrl: optionalCloudinaryUrlSchema.optional(),
+  interests: z.array(z.string().trim().min(1).max(40)).max(12).optional(),
+  onboardingIntent: z.enum(['explore', 'create', 'both']).optional(),
+  onboardingCompleted: z.boolean().optional(),
 }).refine((data) => Object.keys(data).length > 0, {
   message: 'At least one field (bio, name, or avatarUrl) must be provided',
+});
+
+export const onboardingSchema = z.object({
+  genres: z.array(z.string().trim().min(1).max(30).regex(/^[a-z0-9][a-z0-9 -]*$/)).max(8),
+  topics: z.array(z.string().trim().min(1).max(30).regex(/^[a-z0-9][a-z0-9 -]*$/)).max(8),
+  role: z.enum(['listener', 'creator']),
+  name: z.string().trim().max(50).optional(),
+  bio: z.string().max(150).optional(),
+  avatarUrl: optionalCloudinaryUrlSchema.optional(),
+  completed: z.literal(true),
 });
 
 export const trackUploadSchema = z.object({
   title: z.string().trim().min(1, 'Title is required').max(100, 'Title must not exceed 100 characters'),
   artist: z.string().trim().min(1, 'Artist is required').max(100, 'Artist must not exceed 100 characters'),
   album: z.string().trim().max(100, 'Album must not exceed 100 characters').optional().default('Single'),
-  coverUrl: z.string().trim().max(1000).optional(),
-  audioUrl: z.string().trim().min(1, 'Audio URL is required').max(1000),
-  cloudinaryPublicId: z.string().trim().max(250).optional(),
+  coverUrl: optionalCloudinaryUrlSchema.optional(),
+  audioUrl: cloudinaryUrlSchema,
+  cloudinaryPublicId: z.string().trim().min(1, 'cloudinaryPublicId is required').max(250),
   duration: z.coerce.number().positive('Duration must be greater than 0'),
   genre: z.string().trim().max(50, 'Genre must not exceed 50 characters').optional().default('Electronic'),
   bpm: z.coerce.number().positive('BPM must be positive').optional().default(120),
@@ -97,9 +129,9 @@ export const trackUploadSchema = z.object({
 
 export const videoUploadSchema = z.object({
   caption: z.string().trim().min(1, 'Caption is required').max(500, 'Caption must not exceed 500 characters'),
-  videoUrl: z.string().trim().min(1, 'Video URL is required').max(1000),
-  thumbnailUrl: z.string().trim().max(1000).optional(),
-  cloudinaryPublicId: z.string().trim().max(250).optional(),
+  videoUrl: cloudinaryUrlSchema,
+  thumbnailUrl: optionalCloudinaryUrlSchema.optional(),
+  cloudinaryPublicId: z.string().trim().min(1, 'cloudinaryPublicId is required').max(250),
   duration: z.coerce
     .number()
     .positive('Video duration must be greater than 0')

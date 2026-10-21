@@ -6,20 +6,13 @@ import {
   Video as VideoIcon, 
   AlertCircle, 
   CheckCircle2, 
-  Sparkles, 
   Film, 
   FileAudio,
   ArrowRight,
   RefreshCw
-} from 'lucide-react';
+} from './ui/Icon';
 import { uploadApi } from '../services/uploadApi';
 import { clearTrackCache } from '../services/musicApi';
-
-const createTrackArtworkUrl = (trackTitle: string, trackArtist: string) =>
-  `https://api.dicebear.com/9.x/shapes/svg?seed=${encodeURIComponent(`${trackTitle}-${trackArtist}`)}&backgroundColor=111827,312e81,164e63`;
-
-const createVideoThumbnailUrl = (videoUrl: string) =>
-  videoUrl.replace('/upload/', '/upload/so_0/').replace(/\.[^/.?]+(?:\?.*)?$/, '.jpg');
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -44,13 +37,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
   const [caption, setCaption] = useState('');
   const [genre, setGenre] = useState('Electronic');
   const [hashtags, setHashtags] = useState('#kinetic #music #vibes');
-  const [coverUrl, setCoverUrl] = useState('');
+  const [coverFile, setCoverFile] = useState<File | null>(null);
 
   if (!isOpen) return null;
 
   const resetForm = () => {
     setStep(1);
     setFile(null);
+    setCoverFile(null);
     setFileDuration(0);
     setDurationError(null);
     setIsAnalyzing(false);
@@ -116,14 +110,13 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
         const cloudRes = await uploadApi.uploadFileToCloudinary(file, 'video', (pct) => {
           setUploadProgress(10 + Math.round(pct * 0.7));
-        });
+        }, 'video');
 
         setUploadProgress(85);
 
         await uploadApi.publishVideo({
           caption: caption || title || 'Kinetic Short',
           videoUrl: cloudRes.secure_url,
-          thumbnailUrl: createVideoThumbnailUrl(cloudRes.secure_url),
           duration: fileDuration || cloudRes.duration || 30,
           hashtags: hashtags.split(' ').filter(Boolean),
           cloudinaryPublicId: cloudRes.public_id,
@@ -137,7 +130,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
         // Track upload
         const cloudRes = await uploadApi.uploadFileToCloudinary(file, 'auto', (pct) => {
           setUploadProgress(10 + Math.round(pct * 0.7));
-        });
+        }, 'track-audio');
+
+        // Optional artwork: uploaded to the user's own signed folder; without it the server uses the default cover.
+        let uploadedCoverUrl: string | undefined;
+        if (coverFile) {
+          const coverRes = await uploadApi.uploadFileToCloudinary(coverFile, 'image', undefined, 'track-cover');
+          uploadedCoverUrl = coverRes.secure_url;
+        }
 
         setUploadProgress(85);
 
@@ -145,7 +145,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
           title: title || 'New Sound',
           artist: artist || 'Kinetic Creator',
           genre,
-          coverUrl: coverUrl || createTrackArtworkUrl(title || 'New Sound', artist || 'Kinetic Creator'),
+          coverUrl: uploadedCoverUrl,
           audioUrl: cloudRes.secure_url,
           duration: fileDuration || 180,
           cloudinaryPublicId: cloudRes.public_id,
@@ -170,7 +170,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
         {/* Modal Header */}
         <div className="flex items-center justify-between p-6 border-b border-[var(--border)]">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-[var(--accent)]" />
+            <UploadCloud className="w-5 h-5 text-[var(--accent)]" />
             <h2 className="text-lg font-bold text-[var(--text)] font-display">
               Creator Studio Upload
             </h2>
@@ -333,13 +333,20 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-[var(--muted)] block mb-1">Cover Image URL <span className="font-normal text-[var(--subtle)]">(optional)</span></label>
+                    <label className="text-xs font-bold text-[var(--muted)] block mb-1">Cover image <span className="font-normal text-[var(--subtle)]">(optional, JPG, PNG or WebP, up to 5 MB)</span></label>
                     <input
-                      type="url"
-                      value={coverUrl}
-                      onChange={(e) => setCoverUrl(e.target.value)}
-                      placeholder="Paste artwork URL or leave blank for generated artwork"
-                      className="w-full bg-[var(--raised)] border border-[var(--border)] rounded-xl p-3 text-xs text-[var(--text)] placeholder-[var(--subtle)] focus:outline-none focus:border-[var(--accent)]"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={(e) => {
+                        const picked = e.target.files?.[0] || null;
+                        if (picked && picked.size > 5 * 1024 * 1024) {
+                          setErrorMessage('Cover image must be 5 MB or smaller.');
+                          e.target.value = '';
+                          return;
+                        }
+                        setCoverFile(picked);
+                      }}
+                      className="w-full bg-[var(--raised)] border border-[var(--border)] rounded-xl p-3 text-xs text-[var(--text)] file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--accent-soft)] file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-[var(--accent)] focus:outline-none focus:border-[var(--accent)]"
                     />
                   </div>
 
@@ -369,7 +376,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                   </div>
                   <div className="w-full h-2 bg-[var(--raised)] rounded-full overflow-hidden">
                     <div 
-                      className="h-full bg-gradient-to-r from-[var(--accent)] to-[var(--accent)] transition-all duration-300"
+                      className="h-full bg-[var(--accent)] transition-all duration-300"
                       style={{ width: `${uploadProgress}%` }}
                     />
                   </div>
@@ -385,7 +392,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
               <button
                 disabled={isUploading}
                 onClick={handlePublish}
-                className="w-full py-3 rounded-full bg-gradient-to-r from-[var(--accent)] to-[var(--accent)] hover:brightness-110 text-[var(--text)] font-bold text-xs shadow-lg shadow-[var(--accent)]/30 transition-all flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-full bg-[var(--accent)] hover:brightness-110 text-[var(--text)] font-bold text-xs shadow-lg transition-all flex items-center justify-center gap-2"
               >
                 {isUploading ? (
                   <>
@@ -405,7 +412,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
           {/* STEP 4: Success Card */}
           {step === 4 && (
             <div className="text-center py-6 space-y-4 animate-in zoom-in-95">
-              <div className="w-16 h-16 rounded-full bg-[var(--success)]/20 text-[var(--success)] flex items-center justify-center mx-auto shadow-xl shadow-[var(--success)]/20">
+              <div className="w-16 h-16 rounded-full bg-[var(--success)]/20 text-[var(--success)] flex items-center justify-center mx-auto shadow-xl">
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <div>

@@ -58,13 +58,30 @@ const normalizeTrack = (track: ApiTrack, sourceFallback: Track['source'] = 'user
   ...track,
   id: track.id || track._id || `track-${track.title}-${track.artist}`,
   coverUrl: getTrackCover(track),
+  isLiked: track.isLiked ?? false,
   source: track.source || sourceFallback,
 });
 
 export const musicApi = {
+  async setLike(id: string, liked: boolean): Promise<{ liked: boolean; likesCount: number }> {
+    const token = await authApi.getValidToken();
+    if (!token) throw new Error('Sign in to like tracks.');
+    const res = await fetch(`${API_BASE}/music/${encodeURIComponent(id)}/like`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ liked }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.message || 'Unable to update like');
+    return body;
+  },
+
   async getTrendingTracks(): Promise<Track[]> {
-    return cachedTrackRequest('trending', async () => {
-      const res = await fetchWithRetry(`${API_BASE}/music/trending`);
+    const token = authApi.getToken();
+    return cachedTrackRequest(`trending:${token || 'anonymous'}`, async () => {
+      const res = await fetchWithRetry(`${API_BASE}/music/trending`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       if (!res.ok) throw new Error('Failed to fetch trending tracks');
       const data = await res.json();
       return (data.tracks || []).map((track: ApiTrack) => normalizeTrack(track));
@@ -72,8 +89,11 @@ export const musicApi = {
   },
 
   async getAllTracks(): Promise<Track[]> {
-    return cachedTrackRequest('all-tracks', async () => {
-      const res = await fetchWithRetry(`${API_BASE}/music`);
+    const token = authApi.getToken();
+    return cachedTrackRequest(`all-tracks:${token || 'anonymous'}`, async () => {
+      const res = await fetchWithRetry(`${API_BASE}/music`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       if (!res.ok) throw new Error('Failed to fetch tracks');
       const data = await res.json();
       return (data.tracks || []).map((track: ApiTrack) => normalizeTrack(track));
@@ -94,7 +114,10 @@ export const musicApi = {
 
   async searchMusic(query: string): Promise<{ tracks: Track[]; videos: unknown[] }> {
     try {
-      const res = await fetchWithRetry(`${API_BASE}/music/search?q=${encodeURIComponent(query)}`);
+      const token = authApi.getToken();
+      const res = await fetchWithRetry(`${API_BASE}/music/search?q=${encodeURIComponent(query)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       if (res.ok) {
         const data = await res.json();
         return {

@@ -23,13 +23,13 @@ export const uploadApi = {
     });
   },
 
-  async getSignature(): Promise<{ signature: string; timestamp: number; cloudName: string; apiKey: string; folder: string }> {
+  async getSignature(kind: string): Promise<{ signature: string; timestamp: number; cloudName: string; apiKey: string; folder: string; allowed_formats: string }> {
     const token = authApi.getToken();
     if (!token) {
       throw new Error('Your session has expired. Please sign in again before uploading.');
     }
 
-    const res = await fetch(`${API_BASE}/upload/signature`, {
+    const res = await fetch(`${API_BASE}/upload/signature?kind=${encodeURIComponent(kind)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.status === 401) {
@@ -37,7 +37,8 @@ export const uploadApi = {
       throw new Error('Your session has expired. Please sign in again before uploading.');
     }
     if (!res.ok) {
-      throw new Error('Failed to obtain secure upload signature');
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message || 'Failed to obtain secure upload signature');
     }
     return await res.json();
   },
@@ -45,16 +46,19 @@ export const uploadApi = {
   async uploadFileToCloudinary(
     file: File,
     resourceType: 'image' | 'video' | 'auto',
-    onProgress?: UploadProgressCallback
+    onProgress?: UploadProgressCallback,
+    kind?: string
   ): Promise<{ secure_url: string; public_id: string; duration?: number }> {
     try {
-      const sigData = await this.getSignature();
+      const effectiveKind = kind || (resourceType === 'video' ? 'video' : resourceType === 'auto' ? 'track-audio' : 'avatar');
+      const sigData = await this.getSignature(effectiveKind);
       const formData = new FormData();
       formData.append('file', file);
       formData.append('api_key', sigData.apiKey);
       formData.append('timestamp', String(sigData.timestamp));
       formData.append('signature', sigData.signature);
       formData.append('folder', sigData.folder);
+      formData.append('allowed_formats', sigData.allowed_formats); // signed by the server, must be sent unchanged
 
       const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${sigData.cloudName}/${resourceType}/upload`;
 

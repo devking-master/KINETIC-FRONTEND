@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Pause, Heart, MoreHorizontal, Music2, Share2, Sparkles, Filter, Disc } from 'lucide-react';
+import { Play, Pause, Heart, MoreHorizontal, Music2, Share2, Filter, Disc } from '../ui/Icon';
 import { Track, ActiveTab } from '../../types';
 import { clearTrackCache, musicApi } from '../../services/musicApi';
 import { MediaLoadingState } from '../MediaLoadingState';
@@ -59,9 +59,18 @@ export const MusicView: React.FC<MusicViewProps> = ({
     ? tracks 
     : tracks.filter(t => t.genre?.toLowerCase().includes(activeGenre.toLowerCase()));
 
-  const toggleLike = (id: string) => {
-    setLikedMap(prev => ({ ...prev, [id]: !prev[id] }));
-    clearTrackCache();
+  const toggleLike = async (track: Track) => {
+    if (track.source === 'api' || !/^[a-f\d]{24}$/i.test(track.id)) return;
+    const previous = likedMap[track.id] ?? !!track.isLiked;
+    const desired = !previous;
+    setLikedMap((state) => ({ ...state, [track.id]: desired }));
+    try {
+      const result = await musicApi.setLike(track.id, desired);
+      setLikedMap((state) => ({ ...state, [track.id]: result.liked }));
+      clearTrackCache();
+    } catch {
+      setLikedMap((state) => ({ ...state, [track.id]: previous }));
+    }
   };
 
   return (
@@ -70,8 +79,8 @@ export const MusicView: React.FC<MusicViewProps> = ({
       {/* Top Banner */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-[var(--border)] pb-6">
         <div>
-          <h1 className="text-3xl font-black text-[var(--text)] font-display ">Music Catalog</h1>
-          <p className="text-xs text-[var(--muted)] mt-1">Explore lossless master tracks, user uploads, and API discoveries</p>
+          <h1 className="text-3xl font-black text-[var(--text)] font-display ">Music</h1>
+          <p className="text-xs text-[var(--muted)] mt-1">New uploads from creators, plus free music from Jamendo.</p>
         </div>
 
         {/* Genre Filters */}
@@ -82,7 +91,7 @@ export const MusicView: React.FC<MusicViewProps> = ({
               onClick={() => setActiveGenre(g)}
               className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
                 activeGenre === g
-                  ? 'bg-[var(--accent)] text-[var(--text)] shadow-md shadow-[var(--accent)]/30'
+                  ? 'bg-[var(--accent)] text-[var(--text)] shadow-md'
                   : 'bg-[var(--raised)] text-[var(--muted)] border border-[var(--border)] hover:text-[var(--text)]'
               }`}
             >
@@ -95,7 +104,7 @@ export const MusicView: React.FC<MusicViewProps> = ({
       {isLoading && (
         <div>
           <MediaLoadingState />
-          {isWakingServer && <p className="-mt-10 pb-8 text-center text-xs text-[var(--muted)]">Waking up the server, this can take a few seconds</p>}
+          {isWakingServer && <p className="-mt-10 pb-8 text-center text-xs text-[var(--muted)]">Getting things ready. The first load can take up to a minute.</p>}
         </div>
       )}
       {hasLoadError && !isLoading && (
@@ -108,7 +117,7 @@ export const MusicView: React.FC<MusicViewProps> = ({
 
       {/* Featured Track Card */}
       {tracks[0] && (
-        <Card className="relative rounded-2xl bg-gradient-to-r from-[var(--raised)] via-[var(--raised)] to-[var(--surface)] border border-[var(--border)] p-6 flex flex-col md:flex-row items-center gap-6 shadow-xl">
+        <Card className="relative rounded-2xl bg-[var(--raised)] border border-[var(--border)] p-6 flex flex-col md:flex-row items-center gap-6 shadow-xl">
           <img src={tracks[0].coverUrl} alt={tracks[0].title} className="w-40 h-40 rounded-2xl object-cover shadow-2xl border border-[var(--border)]" />
           
           <div className="flex-1 space-y-3 text-center md:text-left">
@@ -120,7 +129,7 @@ export const MusicView: React.FC<MusicViewProps> = ({
 
             <button
               onClick={() => onPlayTrack(tracks[0])}
-              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[var(--accent)] hover:bg-[var(--accent)] text-[var(--text)] font-bold text-xs shadow-lg shadow-[var(--accent)]/30 transition-all hover:scale-105"
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[var(--accent)] hover:bg-[var(--accent)] text-[var(--text)] font-bold text-xs shadow-lg transition-all hover:scale-105"
             >
               <Play className="w-4 h-4 fill-white" />
               <span>Play Featured Track</span>
@@ -163,7 +172,9 @@ export const MusicView: React.FC<MusicViewProps> = ({
 
                 <div className="flex items-center gap-4">
                   <button
-                    onClick={(e) => { e.stopPropagation(); toggleLike(t.id); }}
+                    disabled={t.source === 'api' || !/^[a-f\d]{24}$/i.test(t.id)}
+                    title={t.source === 'api' || !/^[a-f\d]{24}$/i.test(t.id) ? 'Sample track' : 'Like track'}
+                    onClick={(e) => { e.stopPropagation(); void toggleLike(t); }}
                     className={`p-1.5 rounded-full transition-colors ${
                       isLiked ? 'text-[var(--like)]' : 'text-[var(--subtle)] hover:text-[var(--text)]'
                     }`}

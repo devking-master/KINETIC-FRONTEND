@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Heart, MessageCircle, Music2, Play, Share2, Shuffle, SkipBack, SkipForward, Repeat, Sparkles } from 'lucide-react';
+import { Heart, MessageCircle, Music2, Play, Share2, Shuffle, SkipBack, SkipForward, Repeat } from '../ui/Icon';
 import { AnimatePresence, motion } from 'motion/react';
 import { ShortVideo, Track } from '../../types';
 import { videoApi } from '../../services/videoApi';

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Compass, Plus, Library, User, Video, Music2 } from 'lucide-react';
+import { Home, Compass, Plus, Library, User, Video, Music2 } from '../ui/Icon';
 import { ActiveTab, AuthUser } from '../../types';
 
 interface MobileNavProps {
@@ -46,7 +46,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
       {/* Center Create Button */}
       <button
         onClick={onOpenUploadModal}
-        className="w-12 h-12 -mt-4 rounded-full bg-gradient-to-tr from-[var(--accent)] via-[var(--accent)] to-[var(--accent)] flex items-center justify-center text-[var(--text)] shadow-xl shadow-[var(--accent)]/40 border-2 border-[var(--bg)] active:scale-95 transition-transform"
+        className="w-12 h-12 -mt-4 rounded-full bg-[var(--accent)] flex items-center justify-center text-[var(--text)] shadow-xl border-2 border-[var(--bg)] active:scale-95 transition-transform"
       >
         <Plus className="w-6 h-6 stroke-[2.5]" />
       </button>

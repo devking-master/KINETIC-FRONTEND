@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Search, 
-  Sparkles, 
   Plus, 
   Bell, 
   User as UserIcon, 
@@ -11,15 +10,17 @@ import {
   Home, 
   Library, 
   Radio,
+  Upload,
   X,
   ChevronDown,
   LogOut,
   Loader2
-} from 'lucide-react';
+} from '../ui/Icon';
 import { ActiveTab, AuthUser, Track, ShortVideo } from '../../types';
 import { musicApi } from '../../services/musicApi';
 import { KineticLogo } from '../KineticLogo';
 import { Field } from '../ui/Field';
+import { Avatar } from '../ui/Avatar';
 
 interface NavbarProps {
   activeTab: ActiveTab;
@@ -112,7 +113,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => onNavigate(item.id)}
                   className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
                     isActive
-                      ? 'bg-[var(--accent)] text-[var(--text)] shadow-md shadow-[var(--accent)]/30'
+                      ? 'bg-[var(--accent)] text-[var(--text)] shadow-md'
                       : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--raised)]'
                   }`}
                 >
@@ -202,7 +203,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Quick Create Button */}
           <button
             onClick={onOpenUploadModal}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[var(--accent)] to-[var(--accent)] hover:brightness-110 text-[var(--text)] font-semibold text-xs shadow-md shadow-[var(--accent)]/20 transition-all active:scale-95"
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[var(--accent)] hover:brightness-110 text-[var(--text)] font-semibold text-xs shadow-md transition-all active:scale-95"
           >
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Create</span>
@@ -232,7 +233,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="flex items-center gap-2 p-1 rounded-full bg-[var(--raised)] border border-[var(--border)] hover:border-[var(--accent)] transition-all"
           >
             {currentUser ? (
-              <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-7 h-7 rounded-full object-cover" />
+              <Avatar src={currentUser.avatarUrl} name={currentUser.name} size={28} />
             ) : (
               <div className="w-7 h-7 rounded-full bg-[var(--raised)] flex items-center justify-center text-[var(--muted)]">
                 <UserIcon className="w-4 h-4" />
@@ -278,7 +279,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="flex items-center gap-1 p-1 rounded-full bg-[var(--raised)] border border-[var(--border)] hover:border-[var(--accent)] transition-all"
             >
               {currentUser ? (
-                <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-7 h-7 rounded-full object-cover" />
+                <Avatar src={currentUser.avatarUrl} name={currentUser.name} size={28} />
               ) : (
                 <div className="w-7 h-7 rounded-full bg-[var(--raised)] flex items-center justify-center text-[var(--muted)]">
                   <UserIcon className="w-4 h-4" />
@@ -334,7 +335,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         : 'text-[var(--muted)] hover:bg-[var(--raised)] hover:text-[var(--text)]'
                     }`}
                   >
-                    <Sparkles className="w-4 h-4" />
+                    <Upload className="w-4 h-4" />
                     <span>Studio</span>
                   </button>
                   {currentUser && (

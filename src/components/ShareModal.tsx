@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Share2, Check, Copy, X, Loader2 } from 'lucide-react';
+import { Share2, Check, Copy, X, Loader2 } from './ui/Icon';
 import { videoApi } from '../services/videoApi';
 
 interface ShareModalProps {

@@ -48,6 +48,9 @@ export interface ShortVideo {
   waveformType?: 'analog' | 'vocal' | 'subbass' | 'glsl';
   isLiked?: boolean;
   isBookmarked?: boolean;
+  isSaved?: boolean;
+  isFollowingCreator?: boolean;
+  creator?: string;
   source?: MediaSource;
 }
 
@@ -62,6 +65,9 @@ export interface AuthUser {
   role: 'listener' | 'creator';
   followersCount: number;
   followingCount: number;
+  interests?: { genres: string[]; topics: string[] };
+  onboardingIntent?: 'explore' | 'create' | 'both';
+  onboardingCompleted?: boolean;
 }
 
 export interface LiveComment {
@@ -95,4 +101,4 @@ export interface Playlist {
   ownerName: string;
 }
 
-export type ActiveTab = 'home' | 'discover' | 'music' | 'shorts' | 'library' | 'creator-studio' | 'auth' | 'profile' | 'watch';
+export type ActiveTab = 'home' | 'discover' | 'music' | 'shorts' | 'library' | 'creator-studio' | 'auth' | 'profile' | 'watch' | 'welcome';

@@ -24,11 +24,14 @@ const normalizeVideo = (video: ApiVideo, sourceFallback: ShortVideo['source'] = 
   likes: video.likes || String(video.likesCount || 0),
   commentsCount: video.commentsCount || '0',
   thumbnailUrl: getVideoThumbnail(video),
+  isLiked: video.isLiked ?? false,
+  isBookmarked: video.isBookmarked ?? video.isSaved ?? false,
+  isFollowingCreator: video.isFollowingCreator ?? false,
   source: video.source || sourceFallback,
 });
 
-const getVideos = async (endpoint: string): Promise<ShortVideo[]> => {
-  const res = await fetch(endpoint);
+const getVideos = async (endpoint: string, token?: string): Promise<ShortVideo[]> => {
+  const res = await fetch(endpoint, { headers: token ? { Authorization: `Bearer ${token}` } : undefined });
   if (!res.ok) {
     throw new Error(`Video API request failed (${res.status})`);
   }
@@ -62,6 +65,18 @@ const getFeedPage = async (endpoint: string, token?: string): Promise<VideoFeedP
 };
 
 export const videoApi = {
+  async getVideoById(id: string): Promise<ShortVideo> {
+    const token = authApi.getToken();
+    const res = await fetch(`${API_BASE}/videos/${encodeURIComponent(id)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    const body = await res.json();
+    if (!res.ok || !body.video) {
+      throw new Error(body.message || 'Video unavailable');
+    }
+    return normalizeVideo(body.video);
+  },
+
   async getFeedPage(page: number, following = false, token?: string): Promise<VideoFeedPage> {
     const query = new URLSearchParams({ page: String(page), limit: '10' });
     const endpoint = following
@@ -82,7 +97,7 @@ export const videoApi = {
 
   async getTrendingVideos(): Promise<ShortVideo[]> {
     try {
-      return await getVideos(`${API_BASE}/videos/trending`);
+      return await getVideos(`${API_BASE}/videos/trending`, authApi.getToken() || undefined);
     } catch {
       return [];
     }
@@ -90,7 +105,7 @@ export const videoApi = {
 
   async getAllVideos(): Promise<ShortVideo[]> {
     try {
-      return await getVideos(`${API_BASE}/videos`);
+      return await getVideos(`${API_BASE}/videos`, authApi.getToken() || undefined);
     } catch {
       return [];
     }
@@ -110,13 +125,14 @@ export const videoApi = {
       .map((video: ApiVideo) => normalizeVideo(video));
   },
 
-  async toggleLikeVideo(videoId: string, token: string): Promise<{ liked: boolean; likesCount?: number }> {
+  async setLike(videoId: string, liked: boolean, token: string): Promise<{ liked: boolean; likesCount?: number }> {
     const res = await fetch(`${API_BASE}/videos/${videoId}/like`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({ liked }),
       });
     const body = await res.json();
     if (!res.ok) {

@@ -4,45 +4,39 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
+import { validateEnv } from './config/env';
+import { getAllowedOrigins, isAllowedOrigin } from './config/origins';
 import { connectDB, getDatabaseStatus } from './config/db';
 import apiRouter from './routes/api';
 import { initSocket } from './services/socketService';
+import { logMissingProviderKeys } from './services/externalMedia';
+import { requestIdMiddleware, notFoundHandler, errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
+validateEnv();
+logMissingProviderKeys();
+
+if (process.env.NODE_ENV !== 'production' && process.env.RENDER) {
+  console.warn('[Kinetic] WARNING: Running in non-production mode on Render. Set NODE_ENV=production.');
+}
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 5000;
 
 // ── CORS Configuration ──
-// FRONTEND_URL can hold one origin, or several comma-separated
-// (e.g. "https://kinetic-frontend-ecru.vercel.app,https://my-preview-branch.vercel.app")
-// so you can whitelist new deploy previews without touching this code.
-const extraOrigins = (process.env.FRONTEND_URL || '')
-  .split(',')
-  .map((url) => url.trim().replace(/\/+$/, '')) // trim whitespace + trailing slash
-  .filter(Boolean);
-
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'http://127.0.0.1:3000',
-  'http://127.0.0.1:5173',
-  ...extraOrigins,
-];
-
+// Allowed origins live in config/origins.ts (FRONTEND_URL may hold several, comma separated).
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, Postman)
+    // Allow requests with no origin (mobile apps, curl, Postman). Cookie endpoints
+    // (/auth/refresh, /auth/logout) additionally require an allowed Origin header.
     if (!origin) return callback(null, true);
-    const normalizedOrigin = origin.replace(/\/+$/, '');
-    if (allowedOrigins.includes(normalizedOrigin)) {
-      return callback(null, true);
-    }
+    if (isAllowedOrigin(origin)) return callback(null, true);
     console.warn(`[Kinetic CORS] Blocked origin: ${origin}`);
-    callback(new Error(`CORS: Origin ${origin} not allowed`));
+    callback(Object.assign(new Error('CORS: origin not allowed'), { status: 403 }));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Kinetic-Client'],
   credentials: true,
 }));
 
@@ -52,6 +46,9 @@ app.use(
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   })
 );
+
+// ── Request ID ──
+app.use(requestIdMiddleware);
 
 // ── Body Parsers (Cloudinary handles signed media uploads directly) ──
 app.use(express.json({ limit: '2mb' }));
@@ -69,27 +66,23 @@ app.get('/api/health', (_req, res) => {
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     database,
+    providers: {
+      jamendo: Boolean(process.env.JAMENDO_CLIENT_ID),
+      pexels: Boolean(process.env.PEXELS_API_KEY),
+    },
   });
 });
 
 // ── API Routes ──
 app.use('/api', apiRouter);
 
-// ── 404 Handler ──
-app.use((_req, res) => {
-  res.status(404).json({ message: 'Route not found' });
-});
-
-// ── Global Error Handler ──
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('[Kinetic Error]:', err.stack || err.message);
-  res.status(500).json({
-    message: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message,
-  });
-});
+// ── 404 and Error Handlers ──
+app.use('/api/*', notFoundHandler);
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 export const httpServer = http.createServer(app);
-initSocket(httpServer, allowedOrigins);
+initSocket(httpServer, getAllowedOrigins());
 
 if (process.env.NODE_ENV !== 'test') {
   httpServer.listen(PORT, () => {

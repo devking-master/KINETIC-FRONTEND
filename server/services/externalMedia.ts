@@ -6,6 +6,15 @@ const PEXELS_API_URL = 'https://api.pexels.com/videos';
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 200;
 
+export const logMissingProviderKeys = () => {
+  if (!process.env.JAMENDO_CLIENT_ID) {
+    console.warn('[Kinetic] JAMENDO_CLIENT_ID is not set - online music is disabled');
+  }
+  if (!process.env.PEXELS_API_KEY) {
+    console.warn('[Kinetic] PEXELS_API_KEY is not set - online videos are disabled');
+  }
+};
+
 type CacheEntry<T> = { value: T; expiresAt: number };
 const jamendoCache = new Map<string, CacheEntry<Partial<ITrack>[]>>();
 const pexelsCache = new Map<string, CacheEntry<Partial<IVideo>[]>>();
@@ -142,7 +151,7 @@ export const getPexelsVideos = async (query?: string): Promise<Partial<IVideo>[]
       duration: Math.min(video.duration || 15, 90),
       creatorName: video.user?.name || 'Pexels Creator',
       creatorHandle: `@${(video.user?.name || 'pexels').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-      creatorAvatar: video.image,
+      creatorAvatar: '',
       audioTrackTitle: 'Original Sound',
       audioArtist: 'Kinetic Visuals',
       hashtags: ['kinetic', 'visuals'],

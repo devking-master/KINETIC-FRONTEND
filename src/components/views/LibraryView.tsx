@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Heart, Bookmark, ListMusic, Plus, Play, Music2, Library } from 'lucide-react';
+import { Heart, Bookmark, ListMusic, Plus, Play, Music2, Library } from '../ui/Icon';
 import { Track, ActiveTab } from '../../types';
 import { musicApi } from '../../services/musicApi';
 import { MediaLoadingState } from '../MediaLoadingState';
@@ -46,8 +46,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ onPlayTrack, onNavigat
     <div className="space-y-8 pb-28 pt-2 animate-in fade-in duration-300">
       <div className="flex items-center justify-between border-b border-[var(--border)] pb-6">
         <div>
-          <h1 className="text-3xl font-black text-[var(--text)] font-display ">Your Library</h1>
-          <p className="text-xs text-[var(--muted)] mt-1">Saved tracks, custom playlists, and listening history</p>
+          <h1 className="text-3xl font-black text-[var(--text)] font-display ">Library</h1>
+          <p className="text-xs text-[var(--muted)] mt-1">Your liked songs, saved tracks and playlists.</p>
         </div>
 
         <button 
@@ -62,7 +62,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ onPlayTrack, onNavigat
       {isLoading && (
         <div>
           <MediaLoadingState />
-          {isWakingServer && <p className="-mt-10 pb-8 text-center text-xs text-[var(--muted)]">Waking up the server, this can take a few seconds</p>}
+          {isWakingServer && <p className="-mt-10 pb-8 text-center text-xs text-[var(--muted)]">Getting things ready. The first load can take up to a minute.</p>}
         </div>
       )}
       {hasLoadError && !isLoading && (
@@ -76,7 +76,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ onPlayTrack, onNavigat
       {/* Liked Songs Banner */}
       <div 
         onClick={() => tracks[0] && onPlayTrack(tracks[0])}
-        className="rounded-2xl bg-gradient-to-r from-[var(--accent)] to-[var(--accent)] p-6 text-[var(--text)] shadow-xl flex items-center justify-between cursor-pointer hover:scale-101 transition-transform"
+        className="rounded-2xl bg-[var(--accent)] p-6 text-[var(--text)] shadow-xl flex items-center justify-between cursor-pointer hover:scale-101 transition-transform"
       >
         <div className="space-y-2">
           <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">

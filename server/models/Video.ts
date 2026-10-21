@@ -43,7 +43,7 @@ const VideoSchema: Schema = new Schema({
   creator: { type: Schema.Types.ObjectId, ref: 'User' },
   creatorName: { type: String, required: true },
   creatorHandle: { type: String, required: true },
-  creatorAvatar: { type: String, required: true },
+  creatorAvatar: { type: String, default: '' },
   soundId: { type: Schema.Types.ObjectId, ref: 'Track' },
   audioTrackTitle: { type: String, default: 'Original Sound' },
   audioArtist: { type: String, default: 'Kinetic Creator' },
@@ -66,5 +66,6 @@ VideoSchema.index({ creatorName: 1 });
 VideoSchema.index({ audioTrackTitle: 1 });
 VideoSchema.index({ hashtags: 1 });
 VideoSchema.index({ caption: 'text', creatorName: 'text', audioTrackTitle: 'text' });
+VideoSchema.index({ cloudinaryPublicId: 1 }, { unique: true, sparse: true });
 
 export const Video = mongoose.model<IVideo>('Video', VideoSchema);

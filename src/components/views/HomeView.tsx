@@ -2,22 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { 
   Play, 
   Film, 
-  Sparkles, 
   Heart, 
   ArrowRight, 
   Radio, 
-  Flame, 
   Music2, 
   TrendingUp, 
   Clock, 
   UserCheck, 
   Plus 
-} from 'lucide-react';
-import { Track, ShortVideo, ActiveTab } from '../../types';
+} from '../ui/Icon';
+import { AuthUser, Track, ShortVideo, ActiveTab } from '../../types';
 import { musicApi } from '../../services/musicApi';
 import { videoApi } from '../../services/videoApi';
 import { MediaLoadingState } from '../MediaLoadingState';
 import { StateFeedback } from '../ui/StateFeedback';
+import { Avatar } from '../ui/Avatar';
 
 interface HomeViewProps {
   onPlayTrack: (track: Track) => void;
@@ -25,6 +24,7 @@ interface HomeViewProps {
   onOpenWatch: (video: ShortVideo) => void;
   onOpenProfile: (username: string) => void;
   onNavigate: (tab: ActiveTab) => void;
+  currentUser?: AuthUser | null;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
@@ -33,6 +33,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onOpenWatch,
   onOpenProfile,
   onNavigate,
+  currentUser,
 }) => {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [videos, setVideos] = useState<ShortVideo[]>([]);
@@ -84,7 +85,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {isLoading && (
         <div>
           <MediaLoadingState />
-          {isWakingServer && <p className="-mt-10 pb-8 text-center text-xs text-[var(--muted)]">Waking up the server, this can take a few seconds</p>}
+          {isWakingServer && <p className="-mt-10 pb-8 text-center text-xs text-[var(--muted)]">Getting things ready. The first load can take up to a minute.</p>}
         </div>
       )}
       {hasLoadError && !isLoading && (
@@ -101,7 +102,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       )}
       {!isLoading && <>
       {/* 1. HERO SPOTLIGHT BANNER */}
-      {heroTrack && <section className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[var(--surface)] via-[var(--raised)] to-[var(--raised)] border border-[var(--border)] p-6 lg:p-10 shadow-2xl">
+      {heroTrack && <section className="relative overflow-hidden rounded-2xl bg-[var(--surface)] border border-[var(--border)] p-6 lg:p-10 shadow-2xl">
         {/* Dynamic atmospheric glows */}
         <div className="absolute -top-24 -left-24 w-96 h-96 bg-[var(--accent)]/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-[var(--accent)]/15 rounded-full blur-3xl pointer-events-none" />
@@ -110,7 +111,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <div className="max-w-2xl space-y-4">
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[var(--success)]/15 text-[var(--success)] border border-[var(--success)]/30">
-                <span className="w-2 h-2 rounded-full bg-[var(--success)] animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-[var(--success)]" />
                 FEATURED SPOTLIGHT #1
               </span>
               <span className="text-xs font-semibold text-[var(--muted)]">Master Audio & 9:16 Film</span>
@@ -127,7 +128,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <div className="flex flex-wrap items-center gap-3 pt-2">
               <button
                 onClick={() => onPlayTrack(heroTrack)}
-                className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-[var(--accent)] to-[var(--accent)] hover:brightness-110 text-[var(--text)] font-bold text-xs shadow-lg shadow-[var(--accent)]/30 transition-all hover:scale-105 active:scale-95"
+                className="flex items-center gap-2 px-6 py-3 rounded-full bg-[var(--accent)] hover:brightness-110 text-[var(--text)] font-bold text-xs shadow-lg transition-all hover:scale-105 active:scale-95"
               >
                 <Play className="w-4 h-4 fill-white" />
                 <span>Listen Now</span>
@@ -163,7 +164,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Clock className="w-5 h-5 text-[var(--accent)]" />
-            <h2 className="text-xl font-bold text-[var(--text)] font-display">Continue Listening</h2>
+            <h2 className="text-xl font-bold text-[var(--text)] font-display">Continue listening</h2>
           </div>
           <button 
             onClick={() => onNavigate('music')}
@@ -184,7 +185,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <div className="relative aspect-square rounded-xl overflow-hidden mb-3">
                 <img src={t.coverUrl} alt={t.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                  <div className="w-10 h-10 rounded-full bg-[var(--accent)] flex items-center justify-center text-[var(--text)] shadow-lg shadow-[var(--accent)]/40">
+                  <div className="w-10 h-10 rounded-full bg-[var(--accent)] flex items-center justify-center text-[var(--text)] shadow-lg">
                     <Play className="w-4 h-4 fill-white ml-0.5" />
                   </div>
                 </div>
@@ -200,8 +201,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Flame className="w-5 h-5 text-[var(--like)]" />
-            <h2 className="text-xl font-bold text-[var(--text)] font-display">Popular Short Videos</h2>
+            <TrendingUp className="w-5 h-5 text-[var(--like)]" />
+            <h2 className="text-xl font-bold text-[var(--text)] font-display">Popular shorts</h2>
           </div>
           <button 
             onClick={() => onNavigate('shorts')}
@@ -252,7 +253,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
                 <div className="space-y-2">
                   <button onClick={(event) => { event.stopPropagation(); onOpenProfile(v.creatorHandle.replace(/^@/, '')); }} className="flex items-center gap-2 text-left">
-                    <img src={v.creatorAvatar} alt={v.creatorName} className="w-6 h-6 rounded-full border border-white/40 object-cover" />
+                    <Avatar src={v.creator === currentUser?.id ? currentUser.avatarUrl : v.creatorAvatar} name={v.creatorName} size={24} className="border border-white/40" />
                     <span className="text-xs font-bold text-[var(--text)] truncate hover:underline">{v.creatorName}</span>
                   </button>
                   <p className="text-xs text-[var(--text)]/90 font-medium line-clamp-2 leading-snug">
@@ -269,7 +270,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       <section className="space-y-4">
         <div className="flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-[var(--accent)]" />
-          <h2 className="text-xl font-bold text-[var(--text)] font-display">Trending Sounds</h2>
+          <h2 className="text-xl font-bold text-[var(--text)] font-display">Trending tracks</h2>
         </div>
 
         <div className="bg-[var(--raised)] border border-[var(--border)] rounded-2xl p-4 divide-y divide-[var(--border)]">

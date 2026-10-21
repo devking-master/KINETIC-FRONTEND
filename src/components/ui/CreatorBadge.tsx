@@ -1,74 +1,25 @@
 import React from 'react';
-import { CheckCircle2, Zap, Crown, Star } from 'lucide-react';
-
-type BadgeVariant = 'verified' | 'pro' | 'rising' | 'top-creator';
+import { SealCheck } from './Icon';
 
 interface CreatorBadgeProps {
-  variant?: BadgeVariant;
+  variant?: 'verified';
   size?: 'sm' | 'md' | 'lg';
-  /** If true, only show the icon without a label */
   iconOnly?: boolean;
-  followersCount?: number;
 }
 
-const BADGE_CONFIG: Record<BadgeVariant, { icon: React.ElementType; label: string; className: string }> = {
-  verified: {
-    icon: CheckCircle2,
-    label: 'Verified',
-    className: 'bg-[var(--accent-hover)]/20 text-[var(--accent-hover)] border-[var(--accent-hover)]/30',
-  },
-  pro: {
-    icon: Crown,
-    label: 'Pro',
-    className: 'bg-gradient-to-r from-[var(--warning)]/20 to-[var(--like)]/20 text-[var(--warning)] border-[var(--warning)]/30',
-  },
-  rising: {
-    icon: Zap,
-    label: 'Rising',
-    className: 'bg-[var(--success)]/20 text-[var(--success)] border-[var(--success)]/30',
-  },
-  'top-creator': {
-    icon: Star,
-    label: 'Top Creator',
-    className: 'bg-gradient-to-r from-[var(--accent)]/20 to-[var(--accent)]/20 text-[var(--accent-hover)] border-[var(--accent)]/30',
-  },
+const sizeClasses = {
+  sm: 'gap-1 px-1.5 py-0.5 text-[9px]',
+  md: 'gap-1 px-2 py-0.5 text-[10px]',
+  lg: 'gap-1.5 px-2.5 py-1 text-xs',
 };
 
-const SIZE_CLASSES = {
-  sm: { wrapper: 'px-1.5 py-0.5 gap-0.5 rounded-full', icon: 'w-2.5 h-2.5', text: 'text-[9px]' },
-  md: { wrapper: 'px-2 py-0.5 gap-1 rounded-full', icon: 'w-3 h-3', text: 'text-[10px]' },
-  lg: { wrapper: 'px-2.5 py-1 gap-1 rounded-full', icon: 'w-3.5 h-3.5', text: 'text-xs' },
-};
-
-/** Determine badge variant from follower count */
-export const getBadgeVariant = (followersCount: number): BadgeVariant | null => {
-  if (followersCount >= 100_000) return 'top-creator';
-  if (followersCount >= 10_000) return 'pro';
-  if (followersCount >= 1_000) return 'rising';
-  return null;
-};
-
-export const CreatorBadge: React.FC<CreatorBadgeProps> = ({
-  variant,
-  size = 'md',
-  iconOnly = false,
-  followersCount,
-}) => {
-  // Derive variant from follower count if not explicitly set
-  const resolvedVariant = variant ?? (followersCount !== undefined ? getBadgeVariant(followersCount) : null);
-  if (!resolvedVariant) return null;
-
-  const config = BADGE_CONFIG[resolvedVariant];
-  const sizeClass = SIZE_CLASSES[size];
-  const Icon = config.icon;
+export const CreatorBadge: React.FC<CreatorBadgeProps> = ({ variant, size = 'md', iconOnly = false }) => {
+  if (variant !== 'verified') return null;
 
   return (
-    <span
-      className={`inline-flex items-center border font-bold ${sizeClass.wrapper} ${sizeClass.text} ${config.className}`}
-      title={config.label}
-    >
-      <Icon className={sizeClass.icon} />
-      {!iconOnly && <span>{config.label}</span>}
+    <span className={`inline-flex items-center rounded-full border border-[var(--accent)]/30 bg-[var(--accent-soft)] font-bold text-[var(--accent)] ${sizeClasses[size]}`} title="Verified creator">
+      <SealCheck weight="fill" />
+      {!iconOnly && <span>Verified</span>}
     </span>
   );
 };

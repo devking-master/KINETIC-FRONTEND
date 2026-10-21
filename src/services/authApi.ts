@@ -21,6 +21,7 @@ const doRefresh = async (): Promise<string | null> => {
     const res = await fetch(`${API_BASE}/auth/refresh`, {
       method: 'POST',
       credentials: 'include', // send httpOnly cookie
+      headers: { 'X-Kinetic-Client': 'web' },
     });
     if (res.ok) {
       const body = await res.json();
@@ -103,7 +104,7 @@ export const authApi = {
       await fetch(`${API_BASE}/auth/logout`, {
         method: 'POST',
         credentials: 'include',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: { 'X-Kinetic-Client': 'web', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       });
     } catch {
       // Best-effort
@@ -135,13 +136,17 @@ export const authApi = {
   },
 
   async getPublicProfile(username: string) {
-    const res = await fetch(`${API_BASE}/users/${encodeURIComponent(username)}`, { credentials: 'include' });
+    const token = this.getToken();
+    const res = await fetch(`${API_BASE}/users/${encodeURIComponent(username)}`, {
+      credentials: 'include',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
     const body = await res.json();
     if (!res.ok) throw new Error(body.message || 'Unable to load profile');
     return body;
   },
 
-  async updateProfile(data: { name?: string; bio?: string; avatarUrl?: string; coverUrl?: string }) {
+  async updateProfile(data: { name?: string; bio?: string; avatarUrl?: string; coverUrl?: string; interests?: string[]; onboardingIntent?: 'explore' | 'create' | 'both'; onboardingCompleted?: boolean }) {
     const token = await this.getValidToken();
     const res = await fetch(`${API_BASE}/auth/profile`, {
       method: 'PATCH',

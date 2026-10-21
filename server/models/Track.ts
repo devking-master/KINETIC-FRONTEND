@@ -42,5 +42,6 @@ TrackSchema.index({ title: 1 });
 TrackSchema.index({ artist: 1 });
 TrackSchema.index({ genre: 1 });
 TrackSchema.index({ title: 'text', artist: 'text', album: 'text', genre: 'text' });
+TrackSchema.index({ cloudinaryPublicId: 1 }, { unique: true, sparse: true });
 
 export const Track = mongoose.model<ITrack>('Track', TrackSchema);
