@@ -184,9 +184,11 @@ export default function App() {
     }, 3500);
   };
 
-  const handlePlayTrack = (track: Track) => {
-    html5Player.playTrack(track);
-    showToast(`Now Playing: ${track.title} by ${track.artist}`);
+  const handlePlayTrack = (track: Track, context?: Track[]) => {
+    // Pressing the song that is already loaded pauses or resumes it, so only announce a NEW song.
+    const isSameSong = html5Player.getState().currentTrack.id === track.id;
+    html5Player.playTrack(track, context);
+    if (!isSameSong) showToast(`Now Playing: ${track.title} by ${track.artist}`);
   };
 
   const handleSelectShort = (short: ShortVideo) => {

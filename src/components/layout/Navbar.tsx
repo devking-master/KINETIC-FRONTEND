@@ -26,7 +26,7 @@ interface NavbarProps {
   activeTab: ActiveTab;
   onNavigate: (tab: ActiveTab) => void;
   onOpenUploadModal: () => void;
-  onPlayTrack?: (track: Track) => void;
+  onPlayTrack?: (track: Track, context?: Track[]) => void;
   currentUser: AuthUser | null;
   onOpenAuth: () => void;
   onLogout: () => Promise<void> | void;
@@ -162,7 +162,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <button
                       key={t.id}
                       onClick={() => {
-                        if (onPlayTrack) onPlayTrack(t);
+                        if (onPlayTrack) onPlayTrack(t, searchResults.tracks);
                         setShowSearchDropdown(false);
                       }}
                       className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-[var(--raised)] text-left transition-colors"

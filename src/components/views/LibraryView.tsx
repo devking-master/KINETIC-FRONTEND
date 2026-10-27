@@ -6,7 +6,7 @@ import { MediaLoadingState } from '../MediaLoadingState';
 import { StateFeedback } from '../ui/StateFeedback';
 
 interface LibraryViewProps {
-  onPlayTrack: (track: Track) => void;
+  onPlayTrack: (track: Track, context?: Track[]) => void;
   onNavigate: (tab: ActiveTab) => void;
 }
 
@@ -75,7 +75,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ onPlayTrack, onNavigat
 
       {/* Liked Songs Banner */}
       <div 
-        onClick={() => tracks[0] && onPlayTrack(tracks[0])}
+        onClick={() => tracks[0] && onPlayTrack(tracks[0], tracks)}
         className="rounded-2xl bg-[var(--accent)] p-6 text-[var(--text)] shadow-xl flex items-center justify-between cursor-pointer hover:scale-101 transition-transform"
       >
         <div className="space-y-2">
@@ -98,7 +98,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ onPlayTrack, onNavigat
           {tracks.map((t, idx) => (
             <div
               key={t.id}
-              onClick={() => onPlayTrack(t)}
+              onClick={() => onPlayTrack(t, tracks)}
               className="flex items-center justify-between p-3.5 hover:bg-[var(--raised)] transition-colors cursor-pointer group"
             >
               <div className="flex items-center gap-4 min-w-0">

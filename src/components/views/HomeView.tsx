@@ -19,7 +19,7 @@ import { StateFeedback } from '../ui/StateFeedback';
 import { Avatar } from '../ui/Avatar';
 
 interface HomeViewProps {
-  onPlayTrack: (track: Track) => void;
+  onPlayTrack: (track: Track, context?: Track[]) => void;
   onSelectShort: (short: ShortVideo) => void;
   onOpenWatch: (video: ShortVideo) => void;
   onOpenProfile: (username: string) => void;
@@ -127,7 +127,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
             <div className="flex flex-wrap items-center gap-3 pt-2">
               <button
-                onClick={() => onPlayTrack(heroTrack)}
+                onClick={() => onPlayTrack(heroTrack, tracks)}
                 className="flex items-center gap-2 px-6 py-3 rounded-full bg-[var(--accent)] hover:brightness-110 text-[var(--text)] font-bold text-xs shadow-lg transition-all hover:scale-105 active:scale-95"
               >
                 <Play className="w-4 h-4 fill-white" />
@@ -179,7 +179,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           {tracks.slice(0, 6).map((t, index) => (
             <div
               key={`continue-track-${t.id}-${index}`}
-              onClick={() => onPlayTrack(t)}
+              onClick={() => onPlayTrack(t, tracks.slice(0, 6))}
               className="group bg-[var(--raised)] hover:bg-[var(--raised)] border border-[var(--border)] p-3 rounded-2xl cursor-pointer transition-all hover:scale-102 hover:shadow-xl"
             >
               <div className="relative aspect-square rounded-xl overflow-hidden mb-3">
@@ -278,7 +278,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <div
               key={`trending-track-${t.id}-${idx}`}
               className="flex items-center justify-between py-3 px-2 hover:bg-[var(--raised)] rounded-xl transition-colors group cursor-pointer"
-              onClick={() => onPlayTrack(t)}
+              onClick={() => onPlayTrack(t, tracks.slice(0, 4))}
             >
               <div className="flex items-center gap-4 min-w-0">
                 <span className="text-xs font-black text-[var(--subtle)] w-4 text-center">{idx + 1}</span>

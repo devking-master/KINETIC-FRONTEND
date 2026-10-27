@@ -11,6 +11,7 @@ import {
   ArrowRight,
   RefreshCw
 } from './ui/Icon';
+import { capitalizeTitle } from '../services/dsa';
 import { uploadApi } from '../services/uploadApi';
 import { clearTrackCache } from '../services/musicApi';
 
@@ -87,7 +88,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     } else {
       // Track upload
       setFileDuration(180); // Default placeholder duration if unparsed audio metadata
-      setTitle(selectedFile.name.replace(/\.[^/.]+$/, ''));
+      setTitle(capitalizeTitle(selectedFile.name.replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ').trim()));
       setArtist('Kinetic Creator');
       setIsAnalyzing(false);
       setStep(3);

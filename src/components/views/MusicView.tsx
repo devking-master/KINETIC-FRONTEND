@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { Play, Pause, Heart, MoreHorizontal, Music2, Share2, Filter, Disc } from '../ui/Icon';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Play, Pause, Heart, MoreHorizontal, Music2, Share2, Filter, Disc, Plus, Search } from '../ui/Icon';
 import { Track, ActiveTab } from '../../types';
 import { clearTrackCache, musicApi } from '../../services/musicApi';
 import { MediaLoadingState } from '../MediaLoadingState';
 import { StateFeedback } from '../ui/StateFeedback';
 import { Card } from '../ui/Card';
+import { TrackLibrary, sumDurations } from '../../services/dsa';
+import { html5Player } from '../../services/html5Player';
 
 interface MusicViewProps {
-  onPlayTrack: (track: Track) => void;
+  onPlayTrack: (track: Track, context?: Track[]) => void;
   onNavigate: (tab: ActiveTab) => void;
   onOpenShareModal: (title: string) => void;
   currentTrack: Track;
@@ -26,6 +28,8 @@ export const MusicView: React.FC<MusicViewProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [isWakingServer, setIsWakingServer] = useState(false);
   const [hasLoadError, setHasLoadError] = useState(false);
+  const [query, setQuery] = useState('');
+  const [sortMode, setSortMode] = useState<'default' | 'shortest' | 'longest' | 'title'>('default');
 
   const loadTracks = async () => {
     setIsLoading(true);
@@ -55,9 +59,29 @@ export const MusicView: React.FC<MusicViewProps> = ({
 
   const genres = ['All', 'Synthwave', 'Ambient', 'Future Bass', 'Lo-Fi', 'Electronic'];
 
-  const filteredTracks = activeGenre === 'All' 
-    ? tracks 
-    : tracks.filter(t => t.genre?.toLowerCase().includes(activeGenre.toLowerCase()));
+  const filteredTracks = useMemo(
+    () => (activeGenre === 'All' ? tracks : tracks.filter((t) => t.genre?.toLowerCase().includes(activeGenre.toLowerCase()))),
+    [tracks, activeGenre],
+  );
+
+  // The visible list is built with the Spotify Lite library: sorted with bubble sort (by duration or title),
+  // searched with linear search, or binary search for the exact title when the list is sorted A to Z.
+  const library = useMemo(() => {
+    const lib = new TrackLibrary<Track>();
+    for (let i = 0; i < filteredTracks.length; i++) lib.addSong(filteredTracks[i]);
+    if (sortMode === 'shortest') lib.sortByDuration();
+    else if (sortMode === 'longest') lib.sortByDuration(true);
+    else if (sortMode === 'title') lib.sortByTitleAlphabetical();
+    return lib;
+  }, [filteredTracks, sortMode]);
+
+  const visibleTracks = useMemo(
+    () => (query.trim() ? library.search(query) : library.toArray()),
+    [library, query],
+  );
+
+  const totalMinutes = Math.round(sumDurations(visibleTracks) / 60);
+  const totalLabel = totalMinutes < 60 ? `${totalMinutes} min` : `${Math.floor(totalMinutes / 60)} h ${totalMinutes % 60} min`;
 
   const toggleLike = async (track: Track) => {
     if (track.source === 'api' || !/^[a-f\d]{24}$/i.test(track.id)) return;
@@ -128,7 +152,7 @@ export const MusicView: React.FC<MusicViewProps> = ({
             <p className="text-xs text-[var(--muted)] max-w-md">{tracks[0].artist} • {tracks[0].album}</p>
 
             <button
-              onClick={() => onPlayTrack(tracks[0])}
+              onClick={() => onPlayTrack(tracks[0], tracks)}
               className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[var(--accent)] hover:bg-[var(--accent)] text-[var(--text)] font-bold text-xs shadow-lg transition-all hover:scale-105"
             >
               <Play className="w-4 h-4 fill-white" />
@@ -140,10 +164,45 @@ export const MusicView: React.FC<MusicViewProps> = ({
 
       {/* Tracks Table */}
       <div className="space-y-3">
-        <h3 className="text-lg font-bold text-[var(--text)] font-display">Popular Tracks</h3>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-[var(--text)] font-display">Popular Tracks</h3>
+            <p className="text-[11px] text-[var(--muted)] tabular-nums">
+              {visibleTracks.length} {visibleTracks.length === 1 ? 'track' : 'tracks'}
+              {visibleTracks.length > 0 ? ` · ${totalLabel}` : ''}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--subtle)]" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search title or artist"
+                aria-label="Search these tracks"
+                className="w-44 rounded-xl border border-[var(--border)] bg-[var(--surface)] py-2 pl-9 pr-3 text-xs text-[var(--text)] placeholder:text-[var(--subtle)] transition-colors focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/15 sm:w-56"
+              />
+            </div>
+            <select
+              value={sortMode}
+              onChange={(e) => setSortMode(e.target.value as typeof sortMode)}
+              aria-label="Sort tracks"
+              className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text)] transition-colors focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/15"
+            >
+              <option value="default">Default order</option>
+              <option value="shortest">Shortest first</option>
+              <option value="longest">Longest first</option>
+              <option value="title">Title A to Z</option>
+            </select>
+          </div>
+        </div>
 
         <div className="bg-[var(--raised)] border border-[var(--border)] rounded-2xl overflow-hidden divide-y divide-[var(--border)]">
-          {filteredTracks.map((t, idx) => {
+          {visibleTracks.length === 0 && query.trim() !== '' && (
+            <div className="p-8 text-center text-xs text-[var(--subtle)]">No tracks match “{query.trim()}”.</div>
+          )}
+          {visibleTracks.map((t, idx) => {
             const isCurrent = currentTrack.id === t.id;
             const isLiked = likedMap[t.id] ?? t.isLiked;
 
@@ -153,7 +212,7 @@ export const MusicView: React.FC<MusicViewProps> = ({
                 className={`flex items-center justify-between p-3.5 hover:bg-[var(--raised)] transition-colors group cursor-pointer ${
                   isCurrent ? 'bg-[var(--accent)]/10' : ''
                 }`}
-                onClick={() => onPlayTrack(t)}
+                onClick={() => onPlayTrack(t, visibleTracks)}
               >
                 <div className="flex items-center gap-4 min-w-0 flex-1">
                   <span className="text-xs font-black text-[var(--subtle)] w-5 text-center">{idx + 1}</span>
@@ -171,6 +230,14 @@ export const MusicView: React.FC<MusicViewProps> = ({
                 </div>
 
                 <div className="flex items-center gap-4">
+                  <button
+                    title="Add to queue"
+                    aria-label={`Add ${t.title} to queue`}
+                    onClick={(e) => { e.stopPropagation(); html5Player.enqueue(t); }}
+                    className="p-1.5 rounded-full text-[var(--subtle)] transition-colors hover:text-[var(--text)]"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
                   <button
                     disabled={t.source === 'api' || !/^[a-f\d]{24}$/i.test(t.id)}
                     title={t.source === 'api' || !/^[a-f\d]{24}$/i.test(t.id) ? 'Sample track' : 'Like track'}

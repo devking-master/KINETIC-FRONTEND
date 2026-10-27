@@ -89,8 +89,9 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({ onNavigate }) => {
 
       <button
         onClick={() => html5Player.nextTrack()}
-        className="text-[var(--muted)] hover:text-[var(--text)] transition-colors"
-        title="Next Track"
+        disabled={!playerState.hasNext}
+        className="text-[var(--muted)] hover:text-[var(--text)] transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-[var(--muted)]"
+        title={playerState.hasNext ? 'Next Track' : 'End of playlist'}
       >
         <SkipForward className={compact ? 'w-5 h-5' : 'w-4 h-4'} />
       </button>
@@ -150,47 +151,128 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({ onNavigate }) => {
     </div>
   );
 
-  const QueueList = () => (
-    <div className="flex-1 overflow-y-auto space-y-2 pr-1 no-scrollbar">
-      {playerState.queue.map((t, idx) => {
-        const isCurrent = idx === playerState.queueIndex;
-        return (
-          <button
-            key={`${t.id}-${idx}`}
-            onClick={() => html5Player.playTrack(t)}
-            className={`w-full flex items-center gap-3 p-2 rounded-xl text-left transition-all ${
-              isCurrent
-                ? 'bg-[var(--accent)]/15 border border-[var(--accent)]/40'
-                : 'hover:bg-[var(--raised)]'
-            }`}
-          >
-            {t.coverUrl ? (
-              <img src={t.coverUrl} alt={t.title} className="w-10 h-10 rounded-lg object-cover" />
-            ) : (
-              <div className="w-10 h-10 rounded-lg bg-[var(--raised)] flex items-center justify-center">
-                <KineticLogo showText={false} size="sm" />
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <div className={`text-xs font-bold truncate ${isCurrent ? 'text-[var(--accent-hover)]' : 'text-[var(--text)]'}`}>
-                {t.title}
-              </div>
-              <div className="text-[11px] text-[var(--muted)] truncate">{t.artist}</div>
-            </div>
-            <span className="text-[11px] font-medium text-[var(--subtle)]">
-              {formatTime(t.duration)}
-            </span>
-          </button>
-        );
-      })}
-      {playerState.queue.length === 0 && (
-        <p className="text-xs text-[var(--subtle)] text-center py-6">Queue is empty.</p>
-      )}
-    </div>
+  const cover = (t: { coverUrl?: string; title: string }) =>
+    t.coverUrl ? (
+      <img src={t.coverUrl} alt={t.title} className="w-10 h-10 rounded-lg object-cover" />
+    ) : (
+      <div className="w-10 h-10 rounded-lg bg-[var(--raised)] flex items-center justify-center">
+        <KineticLogo showText={false} size="sm" />
+      </div>
+    );
+
+  const QueueSection: React.FC<{ title: string; action?: React.ReactNode; children: React.ReactNode }> = ({ title, action, children }) => (
+    <section className="space-y-1.5">
+      <div className="flex items-center justify-between px-1">
+        <h4 className="text-[11px] font-bold text-[var(--subtle)]">{title}</h4>
+        {action}
+      </div>
+      {children}
+    </section>
   );
+
+  const QueueList = () => {
+    const upcoming = playerState.queue.slice(playerState.queueIndex + 1, playerState.queueIndex + 26);
+    const recent = playerState.history.slice(1, 11); // history[0] is the song playing now
+    const hasCurrent = playerState.currentTrack.id !== 'empty-track';
+
+    return (
+      <div className="flex-1 overflow-y-auto space-y-5 pr-1 no-scrollbar">
+        {hasCurrent && (
+          <QueueSection title="Now playing">
+            <div className="w-full flex items-center gap-3 p-2 rounded-xl bg-[var(--accent)]/15 border border-[var(--accent)]/40">
+              {cover(playerState.currentTrack)}
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-bold truncate text-[var(--accent-hover)]">{playerState.currentTrack.title}</div>
+                <div className="text-[11px] text-[var(--muted)] truncate">{playerState.currentTrack.artist}</div>
+              </div>
+            </div>
+          </QueueSection>
+        )}
+
+        {playerState.upNext.length > 0 && (
+          <QueueSection
+            title="Your queue"
+            action={
+              <button onClick={() => html5Player.clearUpNext()} className="text-[11px] font-bold text-[var(--muted)] hover:text-[var(--text)]">
+                Clear
+              </button>
+            }
+          >
+            {playerState.upNext.map((t, idx) => (
+              <div key={`${t.id}-q${idx}`} className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-[var(--raised)]">
+                {cover(t)}
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-bold truncate text-[var(--text)]">{t.title}</div>
+                  <div className="text-[11px] text-[var(--muted)] truncate">{t.artist}</div>
+                </div>
+                <button
+                  onClick={() => html5Player.removeFromUpNext(t.id)}
+                  className="p-1.5 rounded-full text-[var(--subtle)] hover:text-[var(--text)]"
+                  aria-label={`Remove ${t.title} from queue`}
+                  title="Remove from queue"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </QueueSection>
+        )}
+
+        <QueueSection title={playerState.isShuffle ? 'Next, shuffled' : 'Next from the list'}>
+          {upcoming.map((t, idx) => (
+            <button
+              key={`${t.id}-n${idx}`}
+              onClick={() => html5Player.playTrack(t)}
+              className="w-full flex items-center gap-3 p-2 rounded-xl text-left transition-all hover:bg-[var(--raised)]"
+            >
+              {cover(t)}
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-bold truncate text-[var(--text)]">{t.title}</div>
+                <div className="text-[11px] text-[var(--muted)] truncate">{t.artist}</div>
+              </div>
+              <span className="text-[11px] font-medium text-[var(--subtle)] tabular-nums">{formatTime(t.duration)}</span>
+            </button>
+          ))}
+          {upcoming.length === 0 && (
+            <p className="text-xs text-[var(--subtle)] px-1 py-2">
+              {hasCurrent ? 'End of the list. Add songs to your queue with the + button on any track.' : 'Nothing playing yet.'}
+            </p>
+          )}
+        </QueueSection>
+
+        {recent.length > 0 && (
+          <QueueSection title="Recently played">
+            {recent.map((t, idx) => (
+              <button
+                key={`${t.id}-r${idx}`}
+                onClick={() => html5Player.playTrack(t)}
+                className="w-full flex items-center gap-3 p-2 rounded-xl text-left transition-all hover:bg-[var(--raised)]"
+              >
+                {cover(t)}
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-bold truncate text-[var(--text)]">{t.title}</div>
+                  <div className="text-[11px] text-[var(--muted)] truncate">{t.artist}</div>
+                </div>
+              </button>
+            ))}
+          </QueueSection>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
+      {/* Short message from the player: 'End of playlist reached', 'Added to queue: ...' */}
+      {playerState.notice && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="pointer-events-none fixed bottom-28 left-1/2 z-[60] -translate-x-1/2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--text)] shadow-lg lg:bottom-24"
+        >
+          {playerState.notice}
+        </div>
+      )}
       {/* ── DESKTOP (lg+) SIDE QUEUE DRAWER ── */}
       {isQueueOpen && (
         <div className="hidden lg:flex fixed inset-y-0 right-0 z-50 w-full max-w-sm bg-[var(--surface)] border-l border-[var(--border)] shadow-2xl p-5 flex-col animate-in slide-in-from-right duration-300">

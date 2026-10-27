@@ -9,7 +9,7 @@ import { StateFeedback } from '../ui/StateFeedback';
 import { Avatar } from '../ui/Avatar';
 
 interface DiscoverViewProps {
-  onPlayTrack: (track: Track) => void;
+  onPlayTrack: (track: Track, context?: Track[]) => void;
   onNavigate: (tab: ActiveTab) => void;
   onOpenWatch: (video: ShortVideo) => void;
   onOpenProfile: (username: string) => void;
@@ -167,7 +167,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ onPlayTrack, onNavig
             {tracks.slice(0, 12).map((t, i) => (
               <div
                 key={t.id}
-                onClick={() => onPlayTrack(t)}
+                onClick={() => onPlayTrack(t, tracks.slice(0, 12))}
                 className="group bg-[var(--raised)] hover:bg-[var(--raised)] border border-[var(--border)] p-3 rounded-2xl cursor-pointer transition-all hover:scale-[1.02] hover:border-[var(--accent)]/40"
               >
                 <div className="relative aspect-square rounded-xl overflow-hidden mb-2">
