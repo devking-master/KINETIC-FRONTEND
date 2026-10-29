@@ -8,18 +8,42 @@ export interface UploadProgressCallback {
 
 export const uploadApi = {
   // Inspect video duration via HTML5 Video element before uploading
+  // Reads how long a video file is without uploading it. The temporary blob URL is released only AFTER the element has
+  // stopped using it (releasing it while the element is still loading is what logged "blob: ERR_FILE_NOT_FOUND").
   async checkVideoDuration(file: File): Promise<number> {
     return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
       const video = document.createElement('video');
       video.preload = 'metadata';
+
+      let finished = false;
+      const finish = (error: Error | null, seconds = 0) => {
+        if (finished) return;
+        finished = true;
+        video.onloadedmetadata = null;
+        video.onerror = null;
+        video.ontimeupdate = null;
+        video.removeAttribute('src');
+        video.load(); // detach the element from the blob before releasing it
+        URL.revokeObjectURL(url);
+        if (error) reject(error);
+        else resolve(seconds);
+      };
+
       video.onloadedmetadata = () => {
-        window.URL.revokeObjectURL(video.src);
-        resolve(video.duration);
+        // Some recorded WebM files have no length in the header (the browser says Infinity): seek to the end to find it.
+        if (video.duration === Infinity || Number.isNaN(video.duration)) {
+          video.ontimeupdate = () => {
+            if (Number.isFinite(video.duration)) finish(null, video.duration);
+            else finish(new Error('Could not read how long this video is.'));
+          };
+          video.currentTime = 1e101;
+          return;
+        }
+        finish(null, video.duration);
       };
-      video.onerror = () => {
-        reject(new Error('Failed to read video file metadata'));
-      };
-      video.src = URL.createObjectURL(file);
+      video.onerror = () => finish(new Error('Failed to read video file metadata'));
+      video.src = url;
     });
   },
 

@@ -84,6 +84,16 @@ app.use(errorHandler);
 export const httpServer = http.createServer(app);
 initSocket(httpServer, getAllowedOrigins());
 
+// Behind Render's proxy: keep idle connections open longer than the proxy does. With Node's 5 second default the proxy
+// can reuse a connection Node has just closed, and the browser reports net::ERR_CONNECTION_CLOSED.
+httpServer.keepAliveTimeout = 65_000;
+httpServer.headersTimeout = 66_000;
+
+// A failed background promise must be logged, not take the whole server (and every open request) down.
+process.on('unhandledRejection', (reason) => {
+  console.error('[Kinetic] Unhandled promise rejection:', reason instanceof Error ? reason.message : reason);
+});
+
 if (process.env.NODE_ENV !== 'test') {
   httpServer.listen(PORT, () => {
     console.log(`\n🎵 Kinetic Backend Server running at http://localhost:${PORT}`);

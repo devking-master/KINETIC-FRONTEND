@@ -534,7 +534,7 @@ router.get('/music/:id', async (req: Request, res: Response) => {
       return;
     }
     // Increment play count in background
-    Track.findByIdAndUpdate(req.params.id, { $inc: { playsCount: 1 } }).exec();
+    Track.findByIdAndUpdate(req.params.id, { $inc: { playsCount: 1 } }).exec().catch(() => {});
     res.json({ track: (await withViewerState(await withCreatorAvatars([track as any]), getOptionalUser(req)?.id, 'track'))[0] });
   } catch (err) {
     res.status(500).json({ message: 'Error fetching track' });

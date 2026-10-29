@@ -33,6 +33,26 @@ const isOwnedAssetUrl = (url: unknown, kind: string, userId: string): boolean =>
   }
 };
 
+const MAX_VIDEO_SECONDS = 90;
+const MAX_VIDEO_TOLERANCE_SECONDS = 0.5; // containers often report 90.03 for a video that shows as 1:30
+
+// Cloudinary does not always report a length (some phone and browser-recorded files carry none in the header).
+// Use Cloudinary's number when it has one; otherwise use the length the browser measured. The format, size and
+// maximum-length checks that follow still apply to whichever number is used.
+const pickDuration = (fromCloudinary: unknown, fromBrowser: unknown): { seconds: number; source: 'cloudinary' | 'browser' } | null => {
+  const measured = Number(fromCloudinary);
+  if (Number.isFinite(measured) && measured > 0) return { seconds: measured, source: 'cloudinary' };
+  const reported = Number(fromBrowser);
+  if (Number.isFinite(reported) && reported > 0) return { seconds: reported, source: 'browser' };
+  return null;
+};
+
+// A database validation failure is the uploader's problem (400), not a server crash (500).
+const validationMessage = (err: any): string => {
+  const first = err && err.errors ? Object.values(err.errors as Record<string, { message?: string }>)[0] : undefined;
+  return (first && first.message) || 'Some of the details are not valid.';
+};
+
 // Video poster frame is derived from the verified video itself, not from a client-supplied URL.
 const deriveVideoThumbnail = (videoUrl: string): string =>
   videoUrl.replace('/upload/', '/upload/so_0/').replace(/\.[^/.?]+(?:\?.*)?$/, '.jpg');
@@ -123,7 +143,16 @@ export const createUploadedTrack = async (req: AuthRequest, res: Response): Prom
 
     const allowedFormats = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a'];
     const format = (asset.format || '').toLowerCase();
-    const duration = asset.duration || 0;
+    const pickedDuration = pickDuration(asset.duration, req.body.duration);
+    if (pickedDuration === null) {
+      await cloudinary.uploader.destroy(cloudinaryPublicId, { resource_type: 'video' }).catch(() => {});
+      res.status(400).json({ message: 'We could not read the length of this audio file. Please try a different file.' });
+      return;
+    }
+    if (pickedDuration.source === 'browser') {
+      console.warn('[Kinetic] Cloudinary reported no duration for a track; using the length measured in the browser.');
+    }
+    const duration = pickedDuration.seconds;
     const bytes = asset.bytes || 0;
 
     if (!allowedFormats.includes(format)) {
@@ -159,7 +188,7 @@ export const createUploadedTrack = async (req: AuthRequest, res: Response): Prom
       coverUrl: safeCover,
       audioUrl,
       cloudinaryPublicId,
-      duration: Math.round(duration),
+      duration: Math.max(1, Math.round(duration)),
       genre: genre || 'Electronic',
       bpm: bpm || 120,
       uploadedBy: userId,
@@ -170,6 +199,13 @@ export const createUploadedTrack = async (req: AuthRequest, res: Response): Prom
   } catch (err: any) {
     if (err && err.code === 11000) {
       res.status(400).json({ message: 'An asset with this cloudinaryPublicId has already been published' });
+      return;
+    }
+    if (err && err.name === 'ValidationError') {
+      if (typeof req.body?.cloudinaryPublicId === 'string') {
+        await cloudinary.uploader.destroy(req.body.cloudinaryPublicId, { resource_type: 'video' }).catch(() => {});
+      }
+      res.status(400).json({ message: validationMessage(err) });
       return;
     }
     console.error('[Kinetic] createUploadedTrack error:', err instanceof Error ? err.message : err);
@@ -208,7 +244,20 @@ export const createUploadedVideo = async (req: AuthRequest, res: Response): Prom
 
     const allowedFormats = ['mp4', 'mov', 'webm'];
     const format = (asset.format || '').toLowerCase();
-    const duration = asset.duration || 0;
+    const pickedDuration = pickDuration(asset.duration, req.body.duration);
+    if (pickedDuration === null) {
+      await cloudinary.uploader.destroy(cloudinaryPublicId, { resource_type: 'video' }).catch(() => {});
+      res.status(400).json({ message: 'We could not read the length of this video. Please try a different MP4, MOV or WebM file.' });
+      return;
+    }
+    if (pickedDuration.source === 'browser') {
+      console.warn('[Kinetic] Cloudinary reported no duration for a video; using the length measured in the browser.', {
+        format,
+        bytes: asset.bytes,
+        browserSeconds: pickedDuration.seconds,
+      });
+    }
+    const duration = pickedDuration.seconds;
     const bytes = asset.bytes || 0;
 
     if (!allowedFormats.includes(format)) {
@@ -217,7 +266,7 @@ export const createUploadedVideo = async (req: AuthRequest, res: Response): Prom
       return;
     }
 
-    if (duration > 90) {
+    if (duration > MAX_VIDEO_SECONDS + MAX_VIDEO_TOLERANCE_SECONDS) {
       await cloudinary.uploader.destroy(cloudinaryPublicId, { resource_type: 'video' }).catch(() => {});
       const minutes = Math.floor(duration / 60);
       const secs = Math.floor(duration % 60).toString().padStart(2, '0');
@@ -247,7 +296,7 @@ export const createUploadedVideo = async (req: AuthRequest, res: Response): Prom
       videoUrl,
       thumbnailUrl: deriveVideoThumbnail(videoUrl),
       cloudinaryPublicId,
-      duration: Math.round(duration),
+      duration: Math.min(MAX_VIDEO_SECONDS, Math.max(1, Math.round(duration))),
       creator: userId,
       creatorName,
       creatorHandle,
@@ -262,6 +311,13 @@ export const createUploadedVideo = async (req: AuthRequest, res: Response): Prom
   } catch (err: any) {
     if (err && err.code === 11000) {
       res.status(400).json({ message: 'An asset with this cloudinaryPublicId has already been published' });
+      return;
+    }
+    if (err && err.name === 'ValidationError') {
+      if (typeof req.body?.cloudinaryPublicId === 'string') {
+        await cloudinary.uploader.destroy(req.body.cloudinaryPublicId, { resource_type: 'video' }).catch(() => {});
+      }
+      res.status(400).json({ message: validationMessage(err) });
       return;
     }
     console.error('[Kinetic] createUploadedVideo error:', err instanceof Error ? err.message : err);

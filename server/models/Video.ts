@@ -30,15 +30,11 @@ const VideoSchema: Schema = new Schema({
   videoUrl: { type: String, required: true },
   thumbnailUrl: { type: String, required: true },
   cloudinaryPublicId: { type: String },
-  duration: { 
-    type: Number, 
+  duration: {
+    type: Number,
     required: true,
-    validate: {
-      validator: function(val: number) {
-        return val > 0 && val <= 90;
-      },
-      message: 'Video duration must not exceed 90 seconds (1 minute 30 seconds).'
-    }
+    min: [1, 'The video length could not be read (it must be at least 1 second).'],
+    max: [90, 'Video duration must not exceed 90 seconds (1 minute 30 seconds).'],
   },
   creator: { type: Schema.Types.ObjectId, ref: 'User' },
   creatorName: { type: String, required: true },
